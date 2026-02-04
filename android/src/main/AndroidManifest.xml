@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.axevpn.flutter.openvpn">
+    
+    <!-- ✅ Required permissions for VPN functionality -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" android:minSdkVersion="34" />
+    
+    <application>
+        <!-- ✅ CRITICAL: 16KB page size support metadata for Android 15+ -->
+        <meta-data
+            android:name="android.max_page_size"
+            android:value="16384" />
+        
+        <!-- ✅ App version and build metadata -->
+        <meta-data
+            android:name="axevpn.plugin.version"
+            android:value="2.0.0" />
+            
+        <!-- ✅ OpenVPN Service with Android 15+ support -->
+        <service
+            android:name="de.blinkt.openvpn.core.OpenVPNService"
+            android:foregroundServiceType="systemExempted"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

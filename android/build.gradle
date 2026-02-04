@@ -1,0 +1,108 @@
+group 'com.axevpn.flutter.openvpn'
+version '2.0.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+
+    dependencies {
+        // ✅ UPGRADED: Latest Android Gradle Plugin with 16 KB support
+        classpath 'com.android.tools.build:gradle:8.7.3'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url "https://jitpack.io" }
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace = 'com.axevpn.flutter.openvpn'
+    
+    // ✅ UPGRADED: Latest Android SDK with 16 KB support
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
+    
+    // ✅ CRITICAL: Enable 16KB page size support for Android 15+
+    experimentalProperties["android.experimental.enable16KPageSize"] = true
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        minSdkVersion 24
+        targetSdkVersion 36
+        
+        // ✅ CRITICAL: Version info for 16 KB compliance
+        versionCode 2
+        versionName "2.0.0"
+        
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+    
+    // ✅ CRITICAL: Packaging options for 16KB alignment
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        
+        resources {
+            excludes += [
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt'
+            ]
+        }
+    }
+    
+    // ✅ CRITICAL: Lint configuration
+    lint {
+        disable += ['InvalidPackage', 'ObsoleteLintCustomCheck']
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+    
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // ✅ UPGRADED: Latest OpenVPN library with 16 KB support
+    implementation 'com.github.nizwar:openvpn_library:b3941ef040'
+    
+    // ✅ UPGRADED: Latest Kotlin standard library
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
+    
+    // ✅ Modern AndroidX libraries
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}
