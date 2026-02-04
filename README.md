@@ -332,4 +332,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by M ARSLAB AxeVPN Team**
+**Made with ❤️ by M ARSLAN AxeVPN Team | Whatsapp +973 66994798**

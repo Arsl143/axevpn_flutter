@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:openvpn_flutter/openvpn_flutter.dart';
+import 'package:axevpn_flutter/openvpn_flutter.dart';
 
 void main() {
   runApp(const MyApp());
