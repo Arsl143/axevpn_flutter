@@ -1,8 +1,8 @@
 name: axevpn_flutter
 description: Advanced OpenVPN Flutter plugin with 16 KB page size support for Android 15+. Forked and enhanced for AxeVPN application.
 version: 2.0.0
-homepage: https://github.com/yourusername/axevpn_flutter
-repository: https://github.com/yourusername/axevpn_flutter
+homepage: https://github.com/arsl143/axevpn_flutter
+repository: https://github.com/arsl143/axevpn_flutter
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
