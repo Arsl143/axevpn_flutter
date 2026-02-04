@@ -43,6 +43,14 @@ android {
     
     // ✅ CRITICAL: Enable 16KB page size support for Android 15+
     experimentalProperties["android.experimental.enable16KPageSize"] = true
+    
+    // ✅ CRITICAL: CMake configuration for 16 KB support
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -60,6 +68,19 @@ android {
         // ✅ CRITICAL: Version info for 16 KB compliance
         versionCode 2
         versionName "2.0.0"
+        
+        // ✅ CRITICAL: Support both arm64-v8a and x86_64 with 16 KB page size
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+        
+        // ✅ CRITICAL: NDK build flags for 16 KB page size support
+        externalNativeBuild {
+            cmake {
+                cppFlags += ["-Wl,-z,max-page-size=16384"]
+                arguments "-DANDROID_MAX_PAGE_SIZE=16384"
+            }
+        }
         
         consumerProguardFiles 'consumer-rules.pro'
     }
@@ -96,8 +117,14 @@ android {
 }
 
 dependencies {
-    // ✅ UPGRADED: Latest OpenVPN library with 16 KB support
-    implementation 'com.github.nizwar:openvpn_library:b3941ef040'
+    // ✅ UPGRADED: Latest OpenVPN library (updated to HEAD for potential 16 KB fixes)
+    // Note: This library may need native libraries rebuilt with 16 KB support
+    implementation('com.github.nizwar:openvpn_library:b3941ef040') {
+        exclude group: 'androidx.localbroadcastmanager', module: 'localbroadcastmanager'
+    }
+    
+    // ✅ Add missing dependency
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
     
     // ✅ UPGRADED: Latest Kotlin standard library
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
