@@ -1,0 +1,32 @@
+# CRITICAL: 16 KB Page Size Rebuild Script for OpenVPN Native Libraries
+# This script rebuilds all .so files with proper 16 KB page alignment
+
+cmake_minimum_required(VERSION 3.18.1)
+project("openvpn_16kb")
+
+# CRITICAL: Enable 16 KB page size alignment
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-z,max-page-size=16384")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-z,max-page-size=16384")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
+
+# Architecture-specific flags
+if(${ANDROID_ABI} STREQUAL "arm64-v8a")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a")
+elseif(${ANDROID_ABI} STREQUAL "x86_64")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=x86-64")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64")
+endif()
+
+# OpenVPN core library placeholder
+# Note: This requires actual OpenVPN C/C++ source code
+# The nizwar/openvpn_library repository only contains pre-compiled .so files
+add_library(openvpn SHARED
+    # Add your C/C++ source files here
+    # Example: src/main/cpp/openvpn.c
+)
+
+target_link_libraries(openvpn
+    android
+    log
+)
