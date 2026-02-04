@@ -117,11 +117,11 @@ android {
 }
 
 dependencies {
-    // ✅ UPGRADED: Latest OpenVPN library (updated to HEAD for potential 16 KB fixes)
-    // Note: This library may need native libraries rebuilt with 16 KB support
-    implementation('com.github.nizwar:openvpn_library:b3941ef040') {
-        exclude group: 'androidx.localbroadcastmanager', module: 'localbroadcastmanager'
-    }
+    // ❌ REMOVED: Old nizwar OpenVPN library (4 KB libraries)
+    // Using local jniLibs with 16 KB-compatible libraries from android_ovpn AAR instead
+    // implementation('com.github.nizwar:openvpn_library:b3941ef040') {
+    //     exclude group: 'androidx.localbroadcastmanager', module: 'localbroadcastmanager'
+    // }
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
