@@ -29,7 +29,7 @@ allprojects {
         mavenCentral()
         maven { url "https://jitpack.io" }
         flatDir {
-            dirs 'libs'
+            dirs "${project.projectDir}/libs"
         }
     }
 }
@@ -92,6 +92,8 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // Pick local 16 KB jniLibs FIRST (before nizwar's 4 KB ones)
+            pickFirsts += ['lib/arm64-v8a/libopenvpn.so', 'lib/arm64-v8a/libosslspeedtest.so', 'lib/arm64-v8a/libosslutil.so', 'lib/arm64-v8a/libovpn3.so', 'lib/arm64-v8a/libovpnexec.so', 'lib/arm64-v8a/libovpnutil.so', 'lib/x86_64/libopenvpn.so', 'lib/x86_64/libosslspeedtest.so', 'lib/x86_64/libosslutil.so', 'lib/x86_64/libovpn3.so', 'lib/x86_64/libovpnexec.so', 'lib/x86_64/libovpnutil.so']
         }
         
         resources {
@@ -120,8 +122,9 @@ android {
 }
 
 dependencies {
-    // ✅ Using LOCAL ovpn-release.aar with 16 KB-compatible libraries
-    implementation(name: 'ovpn-release', ext: 'aar')
+    // ✅ Use nizwar's Java classes ONLY (no native libraries - jniLibs provides 16 KB versions)
+    // Extracted from nizwar AAR - contains de.blinkt.openvpn.* classes needed by our code
+    implementation files('libs/nizwar-classes.jar')
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
