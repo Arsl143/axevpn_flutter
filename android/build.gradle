@@ -131,11 +131,8 @@ android {
 }
 
 dependencies {
-    // ✅ Keep nizwar for Java classes and R.class resources
-    // But we'll compile our own 16KB libopvpnutil.so to override the 4KB one
-    implementation('com.github.nizwar:openvpn_library:b3941ef040') {
-        exclude group: 'androidx.localbroadcastmanager'
-    }
+    // ✅ Use our MODIFIED nizwar AAR (libopvpnutil.so removed) + our custom 16KB version in jniLibs/
+    implementation(files('libs/openvpn_library-modified.aar'))
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
@@ -146,25 +143,4 @@ dependencies {
     // ✅ Modern AndroidX libraries
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
-}
-
-// ✅ CRITICAL: Delete nizwar's 4KB libopvpnutil.so BEFORE merging with our 16KB version
-tasks.whenTaskAdded { task ->
-    if (task.name == 'mergeReleaseJniLibFolders' || task.name == 'mergeDebugJniLibFolders') {
-        task.doFirst {
-            // Delete nizwar's 4KB libopvpnutil.so from extracted AAR
-            project.fileTree(buildDir).matching {
-                include '**/jni/**/libopvpnutil.so'
-                include '**/jniLibs/**/libopvpnutil.so'
-            }.each { file ->
-                // Only delete if it's from nizwar (small size)
-                if (file.length() < 8000) {
-                    println "🗑️  Deleting nizwar's 4KB libopvpnutil.so: ${file.path} (${file.length()} bytes)"
-                    file.delete()
-                } else {
-                    println "✅ Keeping our 16KB libopvpnutil.so: ${file.path} (${file.length()} bytes)"
-                }
-            }
-        }
-    }
 }
