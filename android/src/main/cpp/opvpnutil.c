@@ -5,6 +5,7 @@
 #include <android/log.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define LOG_TAG "libopvpnutil"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
