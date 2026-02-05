@@ -72,9 +72,9 @@ android {
         versionCode 2
         versionName "2.0.0"
         
-        // ✅ CRITICAL: Support both arm64-v8a and x86_64 with 16 KB page size
+        // ✅ CRITICAL: Support all architectures with 16 KB page size
         ndk {
-            abiFilters 'arm64-v8a', 'x86_64'
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
         
         // ✅ CRITICAL: NDK build flags for 16 KB page size support
@@ -86,6 +86,13 @@ android {
         }
         
         consumerProguardFiles 'consumer-rules.pro'
+    }
+    
+    // ✅ CRITICAL: Ensure our jniLibs/ are prioritized over nizwar's AAR libraries
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
     }
     
     // ✅ CRITICAL: Packaging options for 16KB alignment
@@ -139,4 +146,25 @@ dependencies {
     // ✅ Modern AndroidX libraries
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+}
+
+// ✅ CRITICAL: Delete nizwar's 4KB libopvpnutil.so BEFORE merging with our 16KB version
+tasks.whenTaskAdded { task ->
+    if (task.name == 'mergeReleaseJniLibFolders' || task.name == 'mergeDebugJniLibFolders') {
+        task.doFirst {
+            // Delete nizwar's 4KB libopvpnutil.so from extracted AAR
+            project.fileTree(buildDir).matching {
+                include '**/jni/**/libopvpnutil.so'
+                include '**/jniLibs/**/libopvpnutil.so'
+            }.each { file ->
+                // Only delete if it's from nizwar (small size)
+                if (file.length() < 8000) {
+                    println "🗑️  Deleting nizwar's 4KB libopvpnutil.so: ${file.path} (${file.length()} bytes)"
+                    file.delete()
+                } else {
+                    println "✅ Keeping our 16KB libopvpnutil.so: ${file.path} (${file.length()} bytes)"
+                }
+            }
+        }
+    }
 }
