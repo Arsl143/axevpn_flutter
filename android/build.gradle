@@ -94,8 +94,8 @@ android {
             useLegacyPackaging = true
             // Pick local 16 KB jniLibs FIRST (before nizwar's 4 KB ones)
             pickFirsts += ['lib/arm64-v8a/libopenvpn.so', 'lib/arm64-v8a/libosslspeedtest.so', 'lib/arm64-v8a/libosslutil.so', 'lib/arm64-v8a/libovpn3.so', 'lib/arm64-v8a/libovpnexec.so', 'lib/arm64-v8a/libovpnutil.so', 'lib/x86_64/libopenvpn.so', 'lib/x86_64/libosslspeedtest.so', 'lib/x86_64/libosslutil.so', 'lib/x86_64/libovpn3.so', 'lib/x86_64/libovpnexec.so', 'lib/x86_64/libovpnutil.so']
-            // EXCLUDE nizwar's 4KB libopvpnutil.so (we don't have 16KB replacement)
-            excludes += ['**/libopvpnutil.so']
+            // ✅ CRITICAL: EXCLUDE ALL non-16KB libopvpnutil.so from nizwar dependency
+            excludes += ['lib/arm64-v8a/libopvpnutil.so', 'lib/armeabi-v7a/libopvpnutil.so', 'lib/x86_64/libopvpnutil.so', 'lib/x86/libopvpnutil.so']
         }
         
         resources {
@@ -128,6 +128,8 @@ dependencies {
     // Native .so files will be overridden by jniLibs/ (pickFirst rules ensure this)
     implementation('com.github.nizwar:openvpn_library:b3941ef040') {
         exclude group: 'androidx.localbroadcastmanager'
+        // ✅ CRITICAL: Exclude ALL native libraries from nizwar (not 16 KB aligned)
+        exclude group: '*', module: '*', classifier: 'natives'
     }
     
     // ✅ Add missing dependency
