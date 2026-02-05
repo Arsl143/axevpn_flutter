@@ -122,9 +122,11 @@ android {
 }
 
 dependencies {
-    // ✅ Use nizwar's Java classes ONLY (no native libraries - jniLibs provides 16 KB versions)
-    // Extracted from nizwar AAR - contains de.blinkt.openvpn.* classes needed by our code
-    implementation files('libs/nizwar-classes.jar')
+    // ✅ Full nizwar AAR for Java classes + resources (R.class files)
+    // Native .so files will be overridden by jniLibs/ (pickFirst rules ensure this)
+    implementation('com.github.nizwar:openvpn_library:b3941ef040') {
+        exclude group: 'androidx.localbroadcastmanager'
+    }
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
