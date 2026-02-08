@@ -131,8 +131,8 @@ android {
 }
 
 dependencies {
-    // ✅ Use our MODIFIED nizwar AAR (libopvpnutil.so removed) + our custom 16KB version in jniLibs/
-    implementation(files('libs/openvpn_library-modified.aar'))
+    // ✅ Renamed AAR with shorter filename to help with Windows path limit
+    implementation(files('libs/openvpn_library_axe.aar'))
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
