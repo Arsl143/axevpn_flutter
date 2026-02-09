@@ -58,23 +58,18 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware {
     Context mContext;
 
     // ✅ CRITICAL: Load native libraries required for OpenVPN JNI
+    // Updated with ics-openvpn v0.7.64 (16 KB page size compatible)
     static {
-        // Try alternative library name FIRST (6.8 KB - might have JNI methods)
+        // Load OpenVPN utility library (contains JNI methods)
         try {
             System.loadLibrary("ovpnutil");
             android.util.Log.i("AxeVPN", "✅ Loaded ovpnutil library");
-        } catch (UnsatisfiedLinkError e1) {
-            try {
-                // Try primary library name as fallback (6.5 KB)
-                System.loadLibrary("opvpnutil");
-                android.util.Log.i("AxeVPN", "✅ Loaded opvpnutil library");
-            } catch (UnsatisfiedLinkError e2) {
-                android.util.Log.e("AxeVPN", "❌ Failed to load opvpnutil/ovpnutil: " + e2.getMessage());
-            }
+        } catch (UnsatisfiedLinkError e) {
+            android.util.Log.e("AxeVPN", "❌ Failed to load ovpnutil: " + e.getMessage());
         }
         
-        // Try loading all other native libraries to find the one with JNI methods
-        String[] libraries = {"gojni", "jbcrypto", "native-lib", "openvpn", "openvpnexec"};
+        // Load additional OpenVPN libraries (all from ics-openvpn v0.7.64 with 16 KB support)
+        String[] libraries = {"openvpn", "ovpnexec", "osslutil", "osslspeedtest", "ovpn3"};
         for (String lib : libraries) {
             try {
                 System.loadLibrary(lib);
