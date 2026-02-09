@@ -40,14 +40,14 @@ apply plugin: 'kotlin-android'
 android {
     namespace = 'com.axevpn.flutter.openvpn'
     
-    // ✅ CRITICAL: Include OpenVPN library source set for R.java generation
+    // ✅ CRITICAL: Include OpenVPN library sources for R.java generation with package de.blinkt.openvpn
     sourceSets {
         main {
             manifest.srcFile 'src/main/AndroidManifest.xml'
-        }
-        openvpn {
-            manifest.srcFile 'src/openvpn/AndroidManifest.xml'
-            res.srcDirs = ['src/openvpn/res']
+            // Add OpenVPN manifest to generate R.java for de.blinkt.openvpn package
+            manifest.srcFiles 'src/openvpn/AndroidManifest.xml'
+            // Merge OpenVPN resources
+            res.srcDirs += ['src/openvpn/res']
         }
     }
     
