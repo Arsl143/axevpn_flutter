@@ -131,8 +131,9 @@ android {
 }
 
 dependencies {
-    // ✅ Renamed AAR with shorter filename to help with Windows path limit
-    implementation(files('libs/openvpn_library_axe.aar'))
+    // ✅ OpenVPN classes extracted from AAR to avoid Windows path length issues
+    implementation(files('libs/openvpn_classes.jar'))
+    // Note: AIDL files are now in src/main/aidl/, native libs in src/main/jniLibs/
     
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
