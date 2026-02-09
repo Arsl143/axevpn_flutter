@@ -40,6 +40,17 @@ apply plugin: 'kotlin-android'
 android {
     namespace = 'com.axevpn.flutter.openvpn'
     
+    // ✅ CRITICAL: Include OpenVPN library source set for R.java generation
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+        }
+        openvpn {
+            manifest.srcFile 'src/openvpn/AndroidManifest.xml'
+            res.srcDirs = ['src/openvpn/res']
+        }
+    }
+    
     // ✅ UPGRADED: Latest Android SDK with 16 KB support
     compileSdk = 36
     ndkVersion = "27.0.12077973"
