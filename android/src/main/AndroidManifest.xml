@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.axevpn.flutter.openvpn">
+    package="de.blinkt.openvpn">
     
     <!-- ✅ Required permissions for VPN functionality -->
     <uses-permission android:name="android.permission.INTERNET" />
