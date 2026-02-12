@@ -1,4 +1,4 @@
-#import "OpenvpnFlutterPlugin.h"
+#import "AxevpnFlutterPlugin.h"
 #if __has_include(<axevpn_flutter/axevpn_flutter-Swift.h>)
 #import <axevpn_flutter/axevpn_flutter-Swift.h>
 #else
@@ -8,8 +8,8 @@
 #import "axevpn_flutter-Swift.h"
 #endif
 
-@implementation OpenVPNFlutterPlugin
+@implementation AxevpnFlutterPlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-  [SwiftOpenVPNFlutterPlugin registerWithRegistrar:registrar];
+  [SwiftAxevpnFlutterPlugin registerWithRegistrar:registrar];
 }
 @end
