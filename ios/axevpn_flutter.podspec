@@ -3,7 +3,7 @@
 # Run `pod lib lint openvpn_flutter.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'openvpn_flutter'
+  s.name             = 'axevpn_flutter'
   s.version          = '2.0.0'
   s.summary          = 'AxeVPN Flutter Plugin - Enhanced OpenVPN Integration'
   s.description      = <<-DESC
