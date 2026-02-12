@@ -2,7 +2,7 @@ import Flutter
 import UIKit
 import NetworkExtension
 
-public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
+public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
     private static var utils : VPNUtils! = VPNUtils()
     
     private static var EVENT_CHANNEL_VPN_STAGE = "id.laskarmedia.openvpn_flutter/vpnstage"
@@ -12,23 +12,23 @@ public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
     private var initialized : Bool = false
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = SwiftAxevpnFlutterPlugin()
+        let instance = SwiftAxeVPNFlutterPlugin()
         instance.onRegister(registrar)
     }
     
     public func onRegister(_ registrar: FlutterPluginRegistrar){
-        let vpnControlM = FlutterMethodChannel(name: SwiftAxevpnFlutterPlugin.METHOD_CHANNEL_VPN_CONTROL, binaryMessenger: registrar.messenger())
-        let vpnStageE = FlutterEventChannel(name: SwiftAxevpnFlutterPlugin.EVENT_CHANNEL_VPN_STAGE, binaryMessenger: registrar.messenger())
+        let vpnControlM = FlutterMethodChannel(name: SwiftAxeVPNFlutterPlugin.METHOD_CHANNEL_VPN_CONTROL, binaryMessenger: registrar.messenger())
+        let vpnStageE = FlutterEventChannel(name: SwiftAxeVPNFlutterPlugin.EVENT_CHANNEL_VPN_STAGE, binaryMessenger: registrar.messenger())
         
         vpnStageE.setStreamHandler(StageHandler())
         vpnControlM.setMethodCallHandler({(call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
             switch call.method {
             case "status":
-                SwiftAxevpnFlutterPlugin.utils.getTraffictStats()
-                result(UserDefaults.init(suiteName: SwiftAxevpnFlutterPlugin.utils.groupIdentifier)?.string(forKey: "connectionUpdate"))
+                SwiftAxeVPNFlutterPlugin.utils.getTraffictStats()
+                result(UserDefaults.init(suiteName: SwiftAxeVPNFlutterPlugin.utils.groupIdentifier)?.string(forKey: "connectionUpdate"))
                 break;
             case "stage":
-                result(SwiftAxevpnFlutterPlugin.utils.currentStatus())
+                result(SwiftAxeVPNFlutterPlugin.utils.currentStatus())
                 break;
             case "initialize":
                 let providerBundleIdentifier: String? = (call.arguments as? [String: Any])?["providerBundleIdentifier"] as? String
@@ -52,12 +52,12 @@ public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
                                         details: nil));
                     return;
                 }
-                SwiftAxevpnFlutterPlugin.utils.groupIdentifier = groupIdentifier
-                SwiftAxevpnFlutterPlugin.utils.localizedDescription = localizedDescription
-                SwiftAxevpnFlutterPlugin.utils.providerBundleIdentifier = providerBundleIdentifier
-                SwiftAxevpnFlutterPlugin.utils.loadProviderManager{(err:Error?) in
+                SwiftAxeVPNFlutterPlugin.utils.groupIdentifier = groupIdentifier
+                SwiftAxeVPNFlutterPlugin.utils.localizedDescription = localizedDescription
+                SwiftAxeVPNFlutterPlugin.utils.providerBundleIdentifier = providerBundleIdentifier
+                SwiftAxeVPNFlutterPlugin.utils.loadProviderManager{(err:Error?) in
                     if err == nil{
-                        result(SwiftAxevpnFlutterPlugin.utils.currentStatus())
+                        result(SwiftAxeVPNFlutterPlugin.utils.currentStatus())
                     }else{
                         result(FlutterError(code: "-4", message: err?.localizedDescription, details: err?.localizedDescription));
                     }
@@ -65,7 +65,7 @@ public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
                 self.initialized = true
                 break;
             case "disconnect":
-                SwiftAxevpnFlutterPlugin.utils.stopVPN()
+                SwiftAxeVPNFlutterPlugin.utils.stopVPN()
                 break;
             case "connect":
                 if !self.initialized {
@@ -83,7 +83,7 @@ public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
                     return
                 }
                 
-                SwiftAxevpnFlutterPlugin.utils.configureVPN(config: config, username: username, password: password, completion: {(success:Error?) -> Void in
+                SwiftAxeVPNFlutterPlugin.utils.configureVPN(config: config, username: username, password: password, completion: {(success:Error?) -> Void in
                     if(success == nil){
                         result(nil)
                     }else{
@@ -104,12 +104,12 @@ public class SwiftAxevpnFlutterPlugin: NSObject, FlutterPlugin {
     
     class StageHandler: NSObject, FlutterStreamHandler {
         func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-            SwiftAxevpnFlutterPlugin.utils.stage = events
+            SwiftAxeVPNFlutterPlugin.utils.stage = events
             return nil
         }
         
         func onCancel(withArguments arguments: Any?) -> FlutterError? {
-            SwiftAxevpnFlutterPlugin.utils.stage = nil
+            SwiftAxeVPNFlutterPlugin.utils.stage = nil
             return nil
         }
     }
