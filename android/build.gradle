@@ -144,4 +144,7 @@ dependencies {
     // ✅ Modern AndroidX libraries
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    
+    // ✅ WireGuard Android Library for native WireGuard support
+    implementation 'com.wireguard.android:tunnel:1.0.20230706'
 }

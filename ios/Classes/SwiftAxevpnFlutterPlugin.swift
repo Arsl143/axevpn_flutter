@@ -4,11 +4,18 @@ import NetworkExtension
 
 public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
     private static var utils : VPNUtils! = VPNUtils()
+    private static var wgManager: WireGuardManager?
     
-    private static var EVENT_CHANNEL_VPN_STAGE = "id.laskarmedia.openvpn_flutter/vpnstage"
-    private static var METHOD_CHANNEL_VPN_CONTROL = "id.laskarmedia.openvpn_flutter/vpncontrol"
+    // ✅ OpenVPN channels
+    private static var EVENT_CHANNEL_VPN_STAGE = "com.axevpn.flutter.openvpn/vpnstage"
+    private static var METHOD_CHANNEL_VPN_CONTROL = "com.axevpn.flutter.openvpn/vpncontrol"
+    
+    // ✅ WireGuard channels  
+    private static var EVENT_CHANNEL_WG_STAGE = "com.axevpn.flutter.wireguard/vpnstage"
+    private static var METHOD_CHANNEL_WG_CONTROL = "com.axevpn.flutter.wireguard/vpncontrol"
      
     public static var stage: FlutterEventSink?
+    public static var wgStage: FlutterEventSink?
     private var initialized : Bool = false
     
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -17,11 +24,24 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
     }
     
     public func onRegister(_ registrar: FlutterPluginRegistrar){
+        // ✅ OpenVPN channels
         let vpnControlM = FlutterMethodChannel(name: SwiftAxeVPNFlutterPlugin.METHOD_CHANNEL_VPN_CONTROL, binaryMessenger: registrar.messenger())
         let vpnStageE = FlutterEventChannel(name: SwiftAxeVPNFlutterPlugin.EVENT_CHANNEL_VPN_STAGE, binaryMessenger: registrar.messenger())
         
         vpnStageE.setStreamHandler(StageHandler())
-        vpnControlM.setMethodCallHandler({(call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+        setupOpenVPNMethodHandler(vpnControlM)
+        
+        // ✅ WireGuard channels
+        let wgControlM = FlutterMethodChannel(name: SwiftAxeVPNFlutterPlugin.METHOD_CHANNEL_WG_CONTROL, binaryMessenger: registrar.messenger())
+        let wgStageE = FlutterEventChannel(name: SwiftAxeVPNFlutterPlugin.EVENT_CHANNEL_WG_STAGE, binaryMessenger: registrar.messenger())
+        
+        wgStageE.setStreamHandler(WireGuardStageHandler())
+        setupWireGuardMethodHandler(wgControlM)
+    }
+    
+    // ✅ OpenVPN method handler
+    private func setupOpenVPNMethodHandler(_ channel: FlutterMethodChannel) {
+        channel.setMethodCallHandler({(call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
             switch call.method {
             case "status":
                 SwiftAxeVPNFlutterPlugin.utils.getTraffictStats()
@@ -101,6 +121,56 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
         })
     }
     
+    // ✅ WireGuard method handler
+    private func setupWireGuardMethodHandler(_ channel: FlutterMethodChannel) {
+        channel.setMethodCallHandler({(call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+            switch call.method {
+            case "initialize":
+                let groupIdentifier: String? = (call.arguments as? [String: Any])?["groupIdentifier"] as? String
+                SwiftAxeVPNFlutterPlugin.wgManager = WireGuardManager(groupIdentifier: groupIdentifier ?? "group.com.axevpn")
+                result(nil)
+                break;
+                
+            case "connect":
+                let config: String? = (call.arguments as? [String: Any])?["config"] as? String
+                let tunnelName: String? = (call.arguments as? [String: Any])?["tunnelName"] as? String
+                
+                if config == nil || config!.isEmpty {
+                    result(FlutterError(code: "INVALID_CONFIG", message: "WireGuard config required", details: nil))
+                    return
+                }
+                
+                SwiftAxeVPNFlutterPlugin.wgManager?.connect(config: config!, tunnelName: tunnelName ?? "AxeVPN") { error in
+                    if error == nil {
+                        result(nil)
+                    } else {
+                        result(FlutterError(code: "CONNECT_FAILED", message: error?.localizedDescription, details: nil))
+                    }
+                }
+                break;
+                
+            case "disconnect":
+                SwiftAxeVPNFlutterPlugin.wgManager?.disconnect()
+                result(nil)
+                break;
+                
+            case "status":
+                let stats = SwiftAxeVPNFlutterPlugin.wgManager?.getStatus() ?? "{\"byte_in\":\"0\",\"byte_out\":\"0\",\"duration\":\"0\",\"last_packet_receive\":\"0\"}"
+                result(stats)
+                break;
+                
+            case "stage":
+                let currentStage = SwiftAxeVPNFlutterPlugin.wgManager?.getStage() ?? "disconnected"
+                result(currentStage)
+                break;
+                
+            default:
+                result(FlutterMethodNotImplemented)
+                break;
+            }
+        })
+    }
+    
     
     class StageHandler: NSObject, FlutterStreamHandler {
         func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
@@ -114,9 +184,25 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
         }
     }
     
+    // ✅ WireGuard stage handler
+    class WireGuardStageHandler: NSObject, FlutterStreamHandler {
+        func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+            SwiftAxeVPNFlutterPlugin.wgStage = events
+            SwiftAxeVPNFlutterPlugin.wgManager?.onStageChanged = { stage in
+                events(stage)
+            }
+            return nil
+        }
+        
+        func onCancel(withArguments arguments: Any?) -> FlutterError? {
+            SwiftAxeVPNFlutterPlugin.wgStage = nil
+            SwiftAxeVPNFlutterPlugin.wgManager?.onStageChanged = nil
+            return nil
+        }
+    }
+    
     
 }
-
 
 @available(iOS 9.0, *)
 class VPNUtils {
