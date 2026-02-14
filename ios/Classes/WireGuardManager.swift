@@ -69,7 +69,9 @@ class WireGuardManager {
                 }
             }
         }
-    }     * Start VPN connection
+    }     
+    /**
+     * Start VPN connection
      */
     private func startVPN(completion: @escaping (_ error: Error?) -> Void) {
         guard let providerManager = providerManager else {
@@ -97,10 +99,7 @@ class WireGuardManager {
     /**
      * Stop VPN connection
      */
-    /**
-     * Start VPN connection
-     */
-    private func startVPN(completion: @escaping (_ error: Error?) -> Void) {
+    func stopVPN(completion: @escaping (_ error: Error?) -> Void) {
         guard let providerManager = providerManager else {
             let error = NSError(domain: "WireGuardManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "No provider manager"])
             self.updateStage("error")
