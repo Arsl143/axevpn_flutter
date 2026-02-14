@@ -21,7 +21,7 @@ import NetworkExtension
  * @since 2.0.0
  */
 public class WireGuardFlutterPlugin: NSObject, FlutterPlugin {
-    private static var manager: WireGuardManager! = WireGuardManager()
+    private static var manager: WireGuardManager?
     
     private static var EVENT_CHANNEL_VPN_STAGE = "com.axevpn.flutter.wireguard/vpnstage"
     private static var METHOD_CHANNEL_VPN_CONTROL = "com.axevpn.flutter.wireguard/vpncontrol"
@@ -48,14 +48,13 @@ public class WireGuardFlutterPlugin: NSObject, FlutterPlugin {
         vpnControlM.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
             switch call.method {
             case "status":
-                WireGuardFlutterPlugin.manager.getStatistics()
-                let statsJson = UserDefaults.init(suiteName: WireGuardFlutterPlugin.manager.groupIdentifier)?
+                let statsJson = UserDefaults.init(suiteName: WireGuardFlutterPlugin.manager?.groupIdentifier ?? "")?
                     .string(forKey: "wg_stats") ?? "{}"
                 result(statsJson)
                 break
                 
             case "stage":
-                result(WireGuardFlutterPlugin.manager.currentStatus())
+                result(WireGuardFlutterPlugin.manager?.getStatus() ?? "disconnected")
                 break
                 
             case "initialize":
@@ -90,28 +89,24 @@ public class WireGuardFlutterPlugin: NSObject, FlutterPlugin {
                     return
                 }
                 
-                WireGuardFlutterPlugin.manager.groupIdentifier = groupIdentifier
-                WireGuardFlutterPlugin.manager.localizedDescription = localizedDescription
-                WireGuardFlutterPlugin.manager.providerBundleIdentifier = providerBundleIdentifier
-                
-                WireGuardFlutterPlugin.manager.loadProviderManager { (err: Error?) in
-                    if err == nil {
-                        result(WireGuardFlutterPlugin.manager.currentStatus())
-                    } else {
-                        result(FlutterError(
-                            code: "-4",
-                            message: err?.localizedDescription ?? "Failed to load provider",
-                            details: err?.localizedDescription
-                        ))
-                    }
-                }
-                
+                // Initialize WireGuard manager with group identifier
+                WireGuardFlutterPlugin.manager = WireGuardManager(groupIdentifier: groupIdentifier!)
                 self.initialized = true
+                result(WireGuardFlutterPlugin.manager?.getStatus() ?? "disconnected")
                 break
                 
             case "disconnect":
-                WireGuardFlutterPlugin.manager.stopVPN()
-                result(nil)
+                WireGuardFlutterPlugin.manager?.stopVPN { error in
+                    if error == nil {
+                        result(nil)
+                    } else {
+                        result(FlutterError(
+                            code: "-5",
+                            message: "Disconnect failed",
+                            details: error?.localizedDescription
+                        ))
+                    }
+                }
                 break
                 
             case "connect":
@@ -136,17 +131,17 @@ public class WireGuardFlutterPlugin: NSObject, FlutterPlugin {
                     return
                 }
                 
-                WireGuardFlutterPlugin.manager.configureVPN(
+                WireGuardFlutterPlugin.manager?.connect(
                     config: config!,
                     tunnelName: tunnelName,
-                    completion: { (success: Error?) -> Void in
-                        if success == nil {
+                    completion: { (error: Error?) -> Void in
+                        if error == nil {
                             result(nil)
                         } else {
                             result(FlutterError(
                                 code: "99",
                                 message: "Connection failed or permission denied",
-                                details: success?.localizedDescription
+                                details: error?.localizedDescription
                             ))
                         }
                     }
