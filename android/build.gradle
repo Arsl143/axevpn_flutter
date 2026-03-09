@@ -40,14 +40,14 @@ apply plugin: 'kotlin-android'
 android {
     // CRITICAL: Must match package expected by precompiled openvpn_classes.jar
     namespace = 'de.blinkt.openvpn'
-    
+
     // ✅ UPGRADED: Latest Android SDK with 16 KB support
     compileSdk = 36
     ndkVersion = "27.0.12077973"
-    
+
     // ✅ CRITICAL: Enable 16KB page size support for Android 15+
     experimentalProperties["android.experimental.enable16KPageSize"] = true
-    
+
     // ✅ CRITICAL: CMake configuration for 16 KB support
     externalNativeBuild {
         cmake {
@@ -60,7 +60,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    
+
     kotlinOptions {
         jvmTarget = '17'
     }
@@ -68,16 +68,16 @@ android {
     defaultConfig {
         minSdkVersion 24
         targetSdkVersion 36
-        
+
         // ✅ CRITICAL: Version info for 16 KB compliance
         versionCode 2
         versionName "2.0.0"
-        
+
         // ✅ CRITICAL: Support all architectures with 16 KB page size
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
-        
+
         // ✅ CRITICAL: NDK build flags for 16 KB page size support
         externalNativeBuild {
             cmake {
@@ -85,17 +85,17 @@ android {
                 arguments "-DANDROID_MAX_PAGE_SIZE=16384"
             }
         }
-        
+
         consumerProguardFiles 'consumer-rules.pro'
     }
-    
+
     // ✅ CRITICAL: Ensure our jniLibs/ are prioritized over nizwar's AAR libraries
     sourceSets {
         main {
             jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
-    
+
     // ✅ CRITICAL: Packaging options for JNI libraries
     packaging {
         jniLibs {
@@ -103,7 +103,7 @@ android {
             // Keep ALL .so files from jniLibs directory
             keepDebugSymbols += ['**/*.so']
         }
-        
+
         resources {
             excludes += [
                 'META-INF/LICENSE',
@@ -113,14 +113,14 @@ android {
             ]
         }
     }
-    
+
     // ✅ CRITICAL: Lint configuration
     lint {
         disable += ['InvalidPackage', 'ObsoleteLintCustomCheck']
         checkReleaseBuilds = false
         abortOnError = false
     }
-    
+
     buildTypes {
         release {
             minifyEnabled false
@@ -134,17 +134,37 @@ dependencies {
     // ✅ OpenVPN library classes (extracted from AAR to avoid Windows path length issues)
     // AIDL, native libs, resources, and assets are now in src/main/
     implementation(files('libs/openvpn_classes.jar'))
-    
+
     // ✅ Add missing dependency
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
-    
+
     // ✅ UPGRADED: Latest Kotlin standard library
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
-    
+
     // ✅ Modern AndroidX libraries
     implementation 'androidx.core:core-ktx:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
-    
-    // ✅ WireGuard Android Library for native WireGuard support
-    implementation 'com.wireguard.android:tunnel:1.0.20230706'
+
+    // ─── WireGuard ────────────────────────────────────────────────────────────
+    // The Go-compiled WireGuard libraries (libwg-go.so, libwg-quick.so, libwg.so)
+    // MUST be built with Go 1.23+ for 16 KB ELF-segment alignment (Android 15+).
+    //
+    // The published Maven artifact com.wireguard.android:tunnel:1.0.20230706
+    // was compiled with Go 1.21 and FAILS Google Play's 16 KB check.
+    // No later pre-built AAR with Go 1.23 is available on Maven Central.
+    //
+    // ✅ HOW TO FIX (one-time, run build_wireguard_16kb.ps1 in the repo root):
+    //   1. Install Go 1.23+ from https://go.dev/dl/
+    //   2. Install Android NDK r27+ (set ANDROID_NDK_HOME)
+    //   3. Run: .\build_wireguard_16kb.ps1
+    //      → copies 16 KB-aligned .so files into src/main/jniLibs/{abi}/
+    //   4. Remove or comment-out the Maven line below and rebuild the Flutter app
+    //
+    // When local 16 KB libs are available:
+    //   • Comment out the implementation line below
+    //   • The sourceSets.main.jniLibs.srcDirs already includes src/main/jniLibs
+    //     so Gradle will pick up the locally-built .so files automatically.
+    //
+    // Until then, pull the published AAR (still Go 1.21 / NOT 16 KB aligned):
+    //implementation 'com.wireguard.android:tunnel:1.0.20230706'
 }
