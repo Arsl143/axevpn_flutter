@@ -38,19 +38,19 @@ class WireGuardStatus {
       duration: json['duration'] != null
           ? Duration(seconds: int.tryParse(json['duration'].toString()) ?? 0)
           : const Duration(),
-      lastPacketReceive: json['last_packet_receive']?.toString() ?? "0",
-      byteIn: json['byte_in']?.toString() ?? "0",
-      byteOut: json['byte_out']?.toString() ?? "0",
+      lastPacketReceive: json['last_packet_receive']?.toString() ?? '0',
+      byteIn: json['byte_in']?.toString() ?? '0',
+      byteOut: json['byte_out']?.toString() ?? '0',
     );
   }
 
   /// Convert to JSON
   Map<String, dynamic> toJson() {
     return {
-      'duration': duration?.inSeconds.toString() ?? "0",
-      'last_packet_receive': lastPacketReceive ?? "0",
-      'byte_in': byteIn ?? "0",
-      'byte_out': byteOut ?? "0",
+      'duration': duration?.inSeconds.toString() ?? '0',
+      'last_packet_receive': lastPacketReceive ?? '0',
+      'byte_in': byteIn ?? '0',
+      'byte_out': byteOut ?? '0',
     };
   }
 

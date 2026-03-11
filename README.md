@@ -1,71 +1,69 @@
-# AxeVPN Flutter Plugin
+﻿# axevpn_flutter
 
-[![pub package](https://img.shields.io/badge/pub-v2.0.1-blue)](https://pub.dev/packages/axevpn_flutter)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Android](https://img.shields.io/badge/Android-21%2B%20%7C%2016KB%20Ready-brightgreen)](https://developer.android.com)
-[![iOS](https://img.shields.io/badge/iOS-16.0%2B-blue)](https://developer.apple.com/ios)
-[![Tested](https://img.shields.io/badge/tested-device%20verified-success)](README.md)
+[![pub package](https://img.shields.io/pub/v/axevpn_flutter.svg)](https://pub.dev/packages/axevpn_flutter)
+[![pub points](https://img.shields.io/pub/points/axevpn_flutter)](https://pub.dev/packages/axevpn_flutter/score)
+[![popularity](https://img.shields.io/pub/popularity/axevpn_flutter)](https://pub.dev/packages/axevpn_flutter/score)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-brightgreen)](https://pub.dev/packages/axevpn_flutter)
 
-Advanced OpenVPN Flutter plugin with **16 KB page size support** for Android 15+ and **iOS 16.0+**. Tested and verified on physical devices.
+A Flutter plugin that provides **OpenVPN** and **WireGuard** VPN connectivity for Android and iOS.  
+Built with Android 15+ 16 KB page-size compatibility and modern Flutter 3.10+ / Dart 3.0+ support.
 
-## ✨ Features
+---
 
-- ✅ **Android 15+ Support** - Full 16 KB memory page size compatibility
-- ✅ **Modern SDK** - Built with latest Flutter 3.10+ and Dart 3.0+
-- ✅ **Real-time Monitoring** - Live connection status and stage updates
-- ✅ **Split Tunneling** - Package bypass support for selective routing
-- ✅ **iOS Support** - Network Extension integration
-- ✅ **Protocol Support** - Both TCP and UDP protocols
-- ✅ **Auto-reconnection** - Built-in connection recovery
-- ✅ **Enhanced Security** - Latest OpenVPN core with security updates
+## Table of Contents
 
-## 🎯 16 KB Page Size Support
+- [Features](#features)
+- [Platform Support](#platform-support)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+  - [OpenVPN](#openvpn)
+  - [WireGuard](#wireguard)
+- [Android Setup](#android-setup)
+- [iOS Setup](#ios-setup)
+- [API Reference](#api-reference)
+  - [OpenVPN API](#openvpn-api)
+  - [WireGuard API](#wireguard-api)
+  - [VPN Stages](#vpn-stages)
+- [Advanced Usage](#advanced-usage)
+- [Troubleshooting](#troubleshooting)
+- [Changelog](#changelog)
+- [License](#license)
 
-✅ **TESTED & VERIFIED** on physical Android device (API 36)
+---
 
-This plugin is fully compatible with Google Play's Android 15+ requirement for 16 KB memory page sizes (deadline: May 31, 2026).
+## Features
 
-### What's Implemented:
-- ✅ `android.experimental.enable16KPageSize=true` in build configuration
-- ✅ NDK 27.0.12077973 with 16 KB alignment support
-- ✅ compileSdk 36 and targetSdk 34 (Android 15+)
-- ✅ Proper metadata in AndroidManifest
-- ✅ 64-bit architecture support (arm64-v8a, x86_64)
-- ✅ **Native libraries load successfully** (verified in logcat)
-- ✅ **No dlopen errors** on physical device
+| Feature | OpenVPN | WireGuard |
+|---|:---:|:---:|
+| Android support | ✅ | ✅ |
+| iOS support | ✅ | ✅ |
+| Real-time status monitoring | ✅ | ✅ |
+| Connection stats (bytes in/out) | ✅ | ✅ |
+| Auto-reconnect handling | ✅ | ✅ |
+| Split tunneling (package bypass) | ✅ | ➖ |
+| TCP & UDP protocol | ✅ | ➖ |
+| Android 15+ 16 KB page-size | ✅ | ✅ |
+| Modern cryptography | ✅ | ✅ |
 
-### Testing Status
-```
-Device: Android 16 (API 36)
-Page Size: 4 KB (standard device)
-Native Libs: ✅ Loaded successfully
-Crashes: ❌ None
-Ready: ✅ Play Store upload
-```
+---
 
-### Note on 16 KB Devices
-Native libraries are pre-compiled from upstream dependency. **Recommended:** Upload to Play Console Internal Testing to verify on actual 16 KB devices. If rejected, libraries can be rebuilt from source.
+## Platform Support
 
-## 📦 Installation
+| Platform | Minimum Version |
+|---|---|
+| Android | 7.0 (API 24) |
+| iOS | 16.0 |
 
-### From Git Repository
+---
 
-Add this to your `pubspec.yaml`:
+## Installation
+
+Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  axevpn_flutter:
-    git:
-      url: https://github.com/yourusername/axevpn_flutter.git
-      ref: main  # or specific tag like v2.0.0
-```
-
-### From Local Path (Development)
-
-```yaml
-dependencies:
-  axevpn_flutter:
-    path: ../openvpn_flutter_plugin
+  axevpn_flutter: ^2.0.0
 ```
 
 Then run:
@@ -74,112 +72,101 @@ Then run:
 flutter pub get
 ```
 
-## 🚀 Quick Start
+---
 
-### 1. Import the Package
+## Quick Start
 
-```dart
-import 'package:axevpn_flutter/axevpn_flutter.dart';
-```
-
-### 2. Initialize VPN Engine
+### OpenVPN
 
 ```dart
-late OpenVPN vpnEngine;
+import 'package:axevpn_flutter/openvpn_flutter.dart';
 
-@override
-void initState() {
-  super.initState();
-  
-  vpnEngine = OpenVPN(
-    onVpnStatusChanged: (status) {
-      print('VPN Status: $status');
-    },
-    onVpnStageChanged: (stage, rawStage) {
-      print('VPN Stage: $stage');
-    },
-  );
-  
-  // Initialize the engine
-  vpnEngine.initialize(
-    groupIdentifier: "group.com.yourapp.vpn",  // iOS only
-    providerBundleIdentifier: "com.yourapp.vpnextension",  // iOS only
-    localizedDescription: "AxeVPN Connection",  // iOS only
-  );
-}
-```
+// 1. Instantiate
+final vpn = OpenVPN(
+  onVpnStatusChanged: (VpnStatus? status) {
+    print('Duration: ${status?.duration}');
+    print('Bytes in: ${status?.byteIn}  Bytes out: ${status?.byteOut}');
+  },
+  onVpnStageChanged: (VPNStage stage, String rawStage) {
+    print('Stage: $stage');
+  },
+);
 
-### 3. Connect to VPN
+// 2. Initialize (required before connect)
+await vpn.initialize(
+  // iOS only ↓
+  groupIdentifier: 'group.com.example.vpn',
+  providerBundleIdentifier: 'com.example.app.VPNExtension',
+  localizedDescription: 'My VPN',
+);
 
-```dart
-Future<void> connectVPN() async {
-  String ovpnConfig = """
+// 3. Connect
+final ovpnConfig = '''
 client
 dev tun
 proto udp
-remote your-server.com 1194
-resolv-retry infinite
-nobind
-persist-key
-persist-tun
-remote-cert-tls server
-auth SHA512
-cipher AES-256-CBC
-verb 3
-<ca>
------BEGIN CERTIFICATE-----
-...your certificate...
------END CERTIFICATE-----
-</ca>
-<cert>
------BEGIN CERTIFICATE-----
-...your certificate...
------END CERTIFICATE-----
-</cert>
-<key>
------BEGIN PRIVATE KEY-----
-...your key...
------END PRIVATE KEY-----
-</key>
-""";
+remote vpn.example.com 1194
+...
+''';
 
-  try {
-    await vpnEngine.connect(
-      ovpnConfig,
-      "VPN Server Name",
-      username: "your_username",  // Optional
-      password: "your_password",  // Optional
-      bypassPackages: [],  // Optional - packages to bypass VPN
-    );
-  } catch (e) {
-    print('Connection error: $e');
-  }
-}
+await vpn.connect(ovpnConfig, 'My Server');
+
+// 4. Disconnect
+vpn.disconnect();
 ```
 
-### 4. Disconnect from VPN
+---
+
+### WireGuard
 
 ```dart
-Future<void> disconnectVPN() async {
-  await vpnEngine.disconnect();
-}
+import 'package:axevpn_flutter/wireguard_flutter.dart';
+
+// 1. Instantiate
+final wg = WireGuard(
+  onVpnStatusChanged: (WireGuardStatus? status) {
+    print('Duration: ${status?.duration}');
+    print('Bytes in: ${status?.byteIn}  Bytes out: ${status?.byteOut}');
+  },
+  onVpnStageChanged: (WGStage stage, String rawStage) {
+    print('Stage: $stage');
+  },
+);
+
+// 2. Initialize
+await wg.initialize(
+  // iOS only ↓
+  groupIdentifier: 'group.com.example.vpn',
+  providerBundleIdentifier: 'com.example.app.WGExtension',
+  localizedDescription: 'My VPN',
+);
+
+// 3. Connect — pass raw WireGuard .conf content
+final wgConfig = '''
+[Interface]
+PrivateKey = <your_private_key>
+Address = 10.0.0.2/24
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = <server_public_key>
+Endpoint = vpn.example.com:51820
+AllowedIPs = 0.0.0.0/0
+''';
+
+await wg.connect(wgConfig, 'My WireGuard');
+
+// 4. Disconnect
+await wg.disconnect();
 ```
 
-### 5. Check Connection Status
+---
 
-```dart
-Future<void> checkStatus() async {
-  VPNStage? currentStage = await vpnEngine.getStage();
-  print('Current stage: $currentStage');
-}
-```
+## Android Setup
 
-## 📱 Platform Configuration
+### 1. Handle VPN permission result in MainActivity
 
-### Android Configuration
-
-#### 1. Update `MainActivity.kt`:
-
+**Kotlin (`MainActivity.kt`)**:
 ```kotlin
 import com.axevpn.flutter.openvpn.AxeVPNFlutterPlugin
 
@@ -189,21 +176,32 @@ override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) 
 }
 ```
 
-#### 2. Update `android/app/build.gradle.kts`:
+**Java (`MainActivity.java`)**:
+```java
+import com.axevpn.flutter.openvpn.AxeVPNFlutterPlugin;
+
+@Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    AxeVPNFlutterPlugin.connectWhileGranted(requestCode == 24 && resultCode == RESULT_OK);
+    super.onActivityResult(requestCode, resultCode, data);
+}
+```
+
+### 2. app/build.gradle (Kotlin DSL)
 
 ```kotlin
 android {
     compileSdk = 36
-    ndkVersion = "27.0.12077973"
-    
-    // Enable 16 KB page size support
-    experimentalProperties["android.experimental.enable16KPageSize"] = true
-    
+    ndkVersion = "27.0.12077973"   // Required for 16 KB page-size support
+
     defaultConfig {
         minSdk = 24
         targetSdk = 36
     }
-    
+
+    // Enable Android 15+ 16 KB memory page size
+    experimentalProperties["android.experimental.enable16KPageSize"] = true
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -212,41 +210,42 @@ android {
 }
 ```
 
-#### 3. Update `android/gradle.properties`:
+### 3. android/gradle.properties
 
 ```properties
 android.experimental.enable16KPageSize=true
 android.bundle.enableUncompressedNativeLibs=false
 ```
 
-#### 4. Update `AndroidManifest.xml`:
+### 4. AndroidManifest.xml
 
 ```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 <application
     android:extractNativeLibs="true"
     ...>
-    
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-</application>
 ```
 
-### iOS Configuration
+---
 
-#### 1. Add Capabilities
+## iOS Setup
 
-Add `App Groups` and `Network Extensions` capabilities to the Runner's target in Xcode.
+### 1. Enable capabilities in Xcode
 
-#### 2. Create Network Extension Target
+In your **Runner** target (and **Network Extension** target), enable:
+- **App Groups** – create `group.com.yourapp.vpn`
+- **Network Extensions** – enable **Packet Tunnel**
 
-Add a new Network Extension target:
-- Click `+` button
-- Choose `NETWORK EXTENSION`
-- Add the same capabilities as Runner
+### 2. Add Network Extension target
 
-#### 3. Update Podfile
+In Xcode → **File → New → Target → Network Extension**.  
+Name it (e.g., `VPNExtension`) and set the same App Group.
 
-Add to `ios/Podfile`:
+#### OpenVPN Extension
+
+Add to `ios/Podfile` under the new target:
 
 ```ruby
 target 'VPNExtension' do
@@ -255,36 +254,210 @@ target 'VPNExtension' do
 end
 ```
 
-#### 4. Configure PacketTunnelProvider
+Copy `PacketTunnelProvider.swift` to `VPNExtension/`:
 
-Copy [PacketTunnelProvider.swift](https://raw.githubusercontent.com/nizwar/openvpn_flutter/master/example/ios/VPNExtension/PacketTunnelProvider.swift) to `VPNExtension/PacketTunnelProvider.swift`.
+```swift
+// See example/ios/VPNExtension/ in the repository
+```
 
-## 🎨 VPN Stages
+#### WireGuard Extension
 
-- `prepare` - Preparing to connect
-- `authenticating` - Authenticating credentials
-- `connecting` - Establishing connection
-- `connected` - Successfully connected
-- `disconnected` - Disconnected
-- `disconnecting` - Disconnecting
-- `denied` - Permission denied
-- `error` - Connection error
-- `wait_connection` - Waiting for connection
-- `get_config` - Getting configuration
-- `tcp_connect` - TCP connection
-- `udp_connect` - UDP connection
-- `assign_ip` - Assigning IP address
-- `resolve` - Resolving DNS
-- `exiting` - Exiting connection
+```ruby
+target 'WGExtension' do
+  use_frameworks!
+  pod 'WireGuardKit', :git => 'https://git.zx2c4.com/wireguard-apple', :tag => '1.0.15-26'
+end
+```
 
-## 🔧 Advanced Usage
+### 3. Info.plist — Network Extension target
 
-### Split Tunneling (Package Bypass)
+```xml
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.networkextension.packet-tunnel</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).PacketTunnelProvider</string>
+</dict>
+```
+
+---
+
+## API Reference
+
+### OpenVPN API
+
+#### `OpenVPN` constructor
 
 ```dart
-await vpnEngine.connect(
+OpenVPN({
+  Function(VpnStatus? data)? onVpnStatusChanged,
+  Function(VPNStage stage, String rawStage)? onVpnStageChanged,
+})
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `onVpnStatusChanged` | `Function(VpnStatus?)` | Called when bytes/duration update |
+| `onVpnStageChanged` | `Function(VPNStage, String)` | Called on every stage transition |
+
+#### `initialize()`
+
+```dart
+Future<void> initialize({
+  String? groupIdentifier,          // iOS: App Group ID
+  String? providerBundleIdentifier, // iOS: Extension bundle ID
+  String? localizedDescription,     // iOS: Description in Settings
+  Function(VpnStatus)? lastStatus,  // Callback with last known status
+  Function(VPNStage)? lastStage,    // Callback with last known stage
+})
+```
+
+#### `connect()`
+
+```dart
+Future connect(
+  String config,    // Raw .ovpn file content
+  String name,      // Display name for notification
+  {
+    String? username,
+    String? password,
+    List<String>? bypassPackages, // Android: packages to exclude from VPN
+    bool certIsRequired = false,
+  }
+)
+```
+
+#### `disconnect()`
+
+```dart
+void disconnect()
+```
+
+#### Other methods
+
+```dart
+Future<VPNStage> stage()
+Future<VpnStatus> status()
+Future<bool> isConnected()
+Future<bool> requestPermissionAndroid()
+static Future<String?> filteredConfig(String? config)
+```
+
+#### `VpnStatus`
+
+```dart
+class VpnStatus {
+  final DateTime? connectedOn; // Time VPN connected
+  final String? duration;      // e.g. "00:05:32"
+  final String? byteIn;        // Bytes received (as string)
+  final String? byteOut;       // Bytes sent (as string)
+  final String? packetsIn;
+  final String? packetsOut;
+}
+```
+
+---
+
+### WireGuard API
+
+#### `WireGuard` constructor
+
+```dart
+WireGuard({
+  Function(WireGuardStatus? data)? onVpnStatusChanged,
+  Function(WGStage stage, String rawStage)? onVpnStageChanged,
+})
+```
+
+#### `initialize()`
+
+```dart
+Future<void> initialize({
+  String? groupIdentifier,
+  String? providerBundleIdentifier,
+  String? localizedDescription,
+  Function(WireGuardStatus)? lastStatus,
+  Function(WGStage)? lastStage,
+})
+```
+
+#### `connect()`
+
+```dart
+Future connect(
+  String config,      // Raw WireGuard .conf content
+  String tunnelName,  // Display name
+)
+```
+
+#### Other methods
+
+```dart
+Future<void> disconnect()
+Future<WGStage> stage()
+Future<WireGuardStatus> status()
+```
+
+#### `WireGuardStatus`
+
+```dart
+class WireGuardStatus {
+  final Duration? duration;         // Connection duration
+  final String? lastPacketReceive;  // Last handshake timestamp
+  final String? byteIn;             // Bytes received
+  final String? byteOut;            // Bytes sent
+}
+```
+
+---
+
+### VPN Stages
+
+#### OpenVPN (`VPNStage`)
+
+| Stage | Description |
+|---|---|
+| `prepare` | Preparing to connect |
+| `authenticating` | Verifying credentials |
+| `connecting` | Establishing tunnel |
+| `connected` | Tunnel is up |
+| `disconnecting` | Tearing down tunnel |
+| `disconnected` | Tunnel is down |
+| `denied` | VPN permission denied |
+| `error` | Connection error |
+| `wait_connection` | Waiting for network |
+| `get_config` | Fetching configuration |
+| `tcp_connect` | TCP handshake |
+| `udp_connect` | UDP handshake |
+| `assign_ip` | IP assignment |
+| `resolve` | DNS resolution |
+| `exiting` | Process exiting |
+
+#### WireGuard (`WGStage`)
+
+| Stage | Description |
+|---|---|
+| `preparing` | Preparing to connect |
+| `connecting` | Establishing tunnel |
+| `connected` | Tunnel is up |
+| `disconnecting` | Tearing down tunnel |
+| `disconnected` | Tunnel is down |
+| `denied` | VPN permission denied |
+| `error` | Error occurred |
+
+---
+
+## Advanced Usage
+
+### Split Tunneling (OpenVPN only)
+
+Exclude specific apps from the VPN tunnel on Android:
+
+```dart
+await vpn.connect(
   ovpnConfig,
-  "Server Name",
+  'My Server',
   bypassPackages: [
     'com.google.android.youtube',
     'com.whatsapp',
@@ -292,61 +465,69 @@ await vpnEngine.connect(
 );
 ```
 
-### Listen to Connection Stats
+### Filter Duplicate Remotes
+
+If your `.ovpn` has many `remote` entries and causes ANR on some devices:
 
 ```dart
-vpnEngine.onVpnStatusChanged = (status) {
-  if (status != null) {
-    print('Duration: ${status.duration}');
-    print('Bytes In: ${status.byteIn}');
-    print('Bytes Out: ${status.byteOut}');
-  }
-};
+String? singleRemoteConfig = await OpenVPN.filteredConfig(rawConfig);
 ```
 
-## 📋 Requirements
+### Request Android Permission Manually
 
-- **Flutter**: >= 3.10.0
-- **Dart**: >= 3.0.0
-- **Android**: >= 7.0 (API 24)
-- **iOS**: >= 12.0
-- **Android NDK**: 27.0.12077973 (for 16 KB support)
+```dart
+bool granted = await vpn.requestPermissionAndroid();
+if (granted) {
+  await vpn.connect(config, 'Server');
+}
+```
 
-## 🐛 Troubleshooting
+### Toggle Connection
 
-### Android Issues
-
-**Build fails with "16 KB not supported":**
-- Ensure NDK 27.0.12077973 is installed
-- Check `android.experimental.enable16KPageSize=true` is set
-- Verify compileSdk is 36
-
-**VPN not connecting:**
-- Check permissions are granted
-- Verify .ovpn configuration is valid
-- Ensure internet connection is available
-
-### iOS Issues
-
-**Network Extension not found:**
-- Verify extension target is added to Xcode
-- Check app groups are configured correctly
-- Ensure bundle identifiers match
-
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Credits
-
-- Forked from [openvpn_flutter](https://github.com/nizwar/openvpn_flutter) by nizwar
-- Built on top of [openvpn_library](https://github.com/nizwar/openvpn_library)
-- Enhanced and maintained by AxeVPN Team
+```dart
+if (await vpn.isConnected()) {
+  vpn.disconnect();
+} else {
+  await vpn.connect(config, 'Server');
+}
+```
 
 ---
 
-**Made with ❤️ by M ARSLAN AxeVPN Team | Whatsapp +973 66994798**
+## Troubleshooting
+
+### Android
+
+| Problem | Solution |
+|---|---|
+| Build fails with 16 KB error | Install NDK `27.0.12077973`; set `enable16KPageSize=true` |
+| VPN permission dialog not shown | Call `requestPermissionAndroid()` before `connect()` |
+| `OpenVPN need to be initialized` | Call `initialize()` before `connect()` |
+| ANR on connect | Use `OpenVPN.filteredConfig()` to reduce remote entries |
+
+### iOS
+
+| Problem | Solution |
+|---|---|
+| `groupIdentifier is required` | Pass all three iOS params to `initialize()` |
+| Network Extension not found | Verify bundle IDs match `providerBundleIdentifier` in Xcode |
+| Status not updating after disconnect | Register `onVpnStageChanged` before calling `initialize()` |
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a complete version history.
+
+---
+
+## License
+
+Licensed under the **GNU General Public License v3.0** – see [LICENSE](LICENSE) for details.
+
+OpenVPN® is a registered trademark of OpenVPN Inc.  
+WireGuard® is a registered trademark of Jason A. Donenfeld.
+
+---
+
+*Forked from [openvpn_flutter](https://github.com/nizwar/openvpn_flutter) and extended with WireGuard support and Android 15+ 16 KB page-size compatibility.*

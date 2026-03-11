@@ -1,8 +1,17 @@
 name: axevpn_flutter
-description: Advanced OpenVPN Flutter plugin with 16 KB page size support for Android 15+. Forked and enhanced for AxeVPN application.
+description: Dual-protocol VPN plugin for Flutter supporting OpenVPN and WireGuard on Android (16 KB page-size ready) and iOS.
 version: 2.0.0
 homepage: https://github.com/arsl143/axevpn_flutter
 repository: https://github.com/arsl143/axevpn_flutter
+issue_tracker: https://github.com/arsl143/axevpn_flutter/issues
+documentation: https://github.com/arsl143/axevpn_flutter#readme
+
+topics:
+  - vpn
+  - openvpn
+  - wireguard
+  - networking
+  - security
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -24,4 +33,4 @@ flutter:
         package: com.axevpn.flutter.openvpn
         pluginClass: AxeVPNFlutterPlugin
       ios:
-        pluginClass: AxeVPNFlutterPlugin
+        pluginClass: SwiftAxeVPNFlutterPlugin

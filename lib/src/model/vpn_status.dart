@@ -1,5 +1,6 @@
-///To store datas of VPN Connection's status detail
+/// Stores the live status detail of an OpenVPN connection.
 class VpnStatus {
+  /// Creates a [VpnStatus] with the given connection details.
   VpnStatus({
     this.duration,
     this.connectedOn,

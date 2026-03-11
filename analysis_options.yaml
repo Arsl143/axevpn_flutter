@@ -1,4 +1,26 @@
 include: package:flutter_lints/flutter.yaml
 
+linter:
+  rules:
+    # Style
+    - prefer_single_quotes
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_fields
+    - unnecessary_this
+    - unnecessary_new
+    - avoid_print
+    - use_super_parameters
+    # Documentation — public APIs must have doc comments
+    - public_member_api_docs
+    # Safety
+    - avoid_dynamic_calls
+    - cancel_subscriptions
+    - close_sinks
+
+analyzer:
+  errors:
+    public_member_api_docs: warning
+
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

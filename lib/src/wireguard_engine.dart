@@ -4,18 +4,37 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'model/wireguard_status.dart';
 
-/// Stages of WireGuard VPN connections
+/// Stages of a WireGuard VPN connection lifecycle.
 enum WGStage {
+  /// Initial preparation before dialing.
   preparing,
+
+  /// Tunnel is being established.
   connecting,
+
+  /// Tunnel is up and traffic is flowing.
   connected,
+
+  /// Graceful shutdown in progress.
   disconnecting,
+
+  /// Tunnel has been torn down.
   disconnected,
+
+  /// An unrecoverable error occurred.
   error,
+
+  /// VPN permission was denied by the user.
   denied,
+
+  /// Stage reported by the native side is unrecognised.
   unknown,
 }
 
+/// Engine that manages a WireGuard VPN connection lifecycle.
+///
+/// Instantiate, call [initialize], then [connect].
+/// Listen to [onVpnStageChanged] and [onVpnStatusChanged] for updates.
 class WireGuard {
   /// Event channel for VPN stage updates
   static const String _eventChannelVpnStage =
@@ -122,11 +141,11 @@ class WireGuard {
   }
 
   /// Disconnect from WireGuard VPN
-  Future<void> disconnect() => _channelControl.invokeMethod("disconnect");
+  Future<void> disconnect() => _channelControl.invokeMethod('disconnect');
 
   /// Get current WireGuard connection status
   Future<WireGuardStatus> status() async {
-    String? statusResult = await _channelControl.invokeMethod("status");
+    String? statusResult = await _channelControl.invokeMethod('status');
     if (statusResult == null || statusResult.isEmpty) {
       return WireGuardStatus.empty();
     }
@@ -138,7 +157,7 @@ class WireGuard {
 
   /// Get current WireGuard connection stage
   Future<WGStage> stage() async {
-    String? stageResult = await _channelControl.invokeMethod("stage");
+    String? stageResult = await _channelControl.invokeMethod('stage');
     if (stageResult == null || stageResult.isEmpty) return WGStage.disconnected;
     return _parseStage(stageResult);
   }

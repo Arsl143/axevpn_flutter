@@ -1,3 +1,18 @@
+## 2.0.0
+* **New: WireGuard protocol support** – full Android and iOS integration via native WireGuard-Go and WireGuardKit
+* **Android 15+ 16 KB page-size compatibility** – NDK 27, `enable16KPageSize=true`, verified on API 36 device
+* **Dual-protocol API** – separate `OpenVPN` and `WireGuard` engine classes with identical lifecycle (`initialize` → `connect` → `disconnect`)
+* **New `WireGuardStatus` model** – duration, byteIn, byteOut, lastPacketReceive
+* **New `WGStage` enum** – preparing, connecting, connected, disconnecting, disconnected, denied, error
+* **Unified plugin class** – `AxeVPNFlutterPlugin` handles both OpenVPN and WireGuard on Android
+* **iOS 16.0+** – WireGuardKit integration via Network Extension
+* Upgraded compileSdk to 36 and minSdk to 24
+* Updated Gradle wrapper and NDK to latest LTS versions
+* Improved channel naming to `com.axevpn.flutter.*` namespace
+* Added `isConnected()` helper to `OpenVPN` engine
+* Updated dependencies: Flutter ≥ 3.10, Dart ≥ 3.0
+* Comprehensive API documentation on all public classes and methods
+
 ## 1.3.4
 * Fix notification issue for newest SDK
 ## 1.3.3

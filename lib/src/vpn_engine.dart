@@ -5,34 +5,73 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'model/vpn_status.dart';
 
-///Stages of vpn connections
+/// Stages of an OpenVPN connection lifecycle.
 enum VPNStage {
+  /// Initial preparation before dialing.
   prepare,
+
+  /// Authenticating credentials with the server.
   authenticating,
+
+  /// TCP/UDP connection being established.
   connecting,
+
+  /// Certificate/user authentication in progress.
   authentication,
+
+  /// Tunnel is up and traffic is flowing.
   connected,
+
+  /// Tunnel has been torn down.
   disconnected,
+
+  /// Graceful shutdown in progress.
   disconnecting,
+
+  /// VPN permission was denied by the user.
   denied,
+
+  /// An unrecoverable error occurred.
   error,
+
   // ignore: constant_identifier_names
+  /// Waiting for a usable network connection.
   wait_connection,
+
   // ignore: constant_identifier_names
+  /// Generating the client configuration.
   vpn_generate_config,
+
   // ignore: constant_identifier_names
+  /// Fetching remote configuration.
   get_config,
+
   // ignore: constant_identifier_names
+  /// Performing TCP handshake with the remote.
   tcp_connect,
+
   // ignore: constant_identifier_names
+  /// Performing UDP handshake with the remote.
   udp_connect,
+
   // ignore: constant_identifier_names
+  /// IP address being assigned to the tunnel interface.
   assign_ip,
+
+  /// Resolving the server hostname via DNS.
   resolve,
+
+  /// The OpenVPN process is exiting.
   exiting,
+
+  /// Stage reported by the native side is unrecognised.
   unknown,
 }
 
+/// Engine that manages an OpenVPN connection lifecycle.
+///
+/// Instantiate, call [initialize], then [connect].
+/// Listen to [onVpnStageChanged] and [onVpnStatusChanged] for updates.
 class OpenVPN {
   ///Channel's names of _vpnStageSnapshot
   static const String _eventChannelVpnStage =
