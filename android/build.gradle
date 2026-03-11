@@ -102,6 +102,15 @@ android {
             useLegacyPackaging = false
             // Keep ALL .so files from jniLibs directory
             keepDebugSymbols += ['**/*.so']
+            // ✅ When the WireGuard tunnel AAR and our locally-built jniLibs both
+            //    supply the same .so file, keep the first copy Gradle encounters.
+            //    Local jniLibs (src/main/jniLibs) are processed first, so our
+            //    16 KB-aligned versions win over the non-16 KB AAR versions.
+            pickFirsts += [
+                '**/libwg-go.so',
+                '**/libwg.so',
+                '**/libwg-quick.so'
+            ]
         }
 
         resources {
@@ -146,25 +155,20 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
 
     // ─── WireGuard ────────────────────────────────────────────────────────────
-    // The Go-compiled WireGuard libraries (libwg-go.so, libwg-quick.so, libwg.so)
-    // MUST be built with Go 1.23+ for 16 KB ELF-segment alignment (Android 15+).
+    // The WireGuard tunnel AAR provides the Java/Kotlin API (GoBackend, Config, etc.).
     //
-    // The published Maven artifact com.wireguard.android:tunnel:1.0.20230706
-    // was compiled with Go 1.21 and FAILS Google Play's 16 KB check.
-    // No later pre-built AAR with Go 1.23 is available on Maven Central.
+    // The prebuilt .so files inside this AAR were built with Go 1.21 and do NOT
+    // pass Google Play's 16 KB page-alignment check for Android 15+.
     //
-    // ✅ HOW TO FIX (one-time, run build_wireguard_16kb.ps1 in the repo root):
+    // ✅ We override them with locally-built 16 KB-aligned versions placed in
+    //    src/main/jniLibs/{abi}/ (see build_wireguard_16kb.ps1 and build_wg_c_libs.ps1).
+    //    The packaging.jniLibs.pickFirsts rules in the android {} block above ensure
+    //    our local copies win when Gradle merges JNI libs from AAR + jniLibs.
+    //
+    // To rebuild the local .so files (one-time setup, Windows):
     //   1. Install Go 1.23+ from https://go.dev/dl/
-    //   2. Install Android NDK r27+ (set ANDROID_NDK_HOME)
-    //   3. Run: .\build_wireguard_16kb.ps1
-    //      → copies 16 KB-aligned .so files into src/main/jniLibs/{abi}/
-    //   4. Remove or comment-out the Maven line below and rebuild the Flutter app
-    //
-    // When local 16 KB libs are available:
-    //   • Comment out the implementation line below
-    //   • The sourceSets.main.jniLibs.srcDirs already includes src/main/jniLibs
-    //     so Gradle will pick up the locally-built .so files automatically.
-    //
-    // Until then, pull the published AAR (still Go 1.21 / NOT 16 KB aligned):
-    //implementation 'com.wireguard.android:tunnel:1.0.20230706'
+    //   2. Ensure Android NDK 27+ is installed via SDK Manager
+    //   3. .\build_wireguard_16kb.ps1   (builds libwg-go.so)
+    //   4. .\build_wg_c_libs.ps1        (builds libwg.so and libwg-quick.so)
+    implementation 'com.wireguard.android:tunnel:1.0.20230706'
 }
