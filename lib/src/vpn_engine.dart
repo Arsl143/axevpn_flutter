@@ -142,23 +142,21 @@ class OpenVPN {
     onVpnStatusChanged?.call(VpnStatus.empty());
     initialized = true;
     _initializeListener();
-    return _channelControl
-        .invokeMethod("initialize", {
-          "groupIdentifier": groupIdentifier,
-          "providerBundleIdentifier": providerBundleIdentifier,
-          "localizedDescription": localizedDescription,
-        })
-        .then((value) {
-          Future.wait([
-            status().then((value) => lastStatus?.call(value)),
-            stage().then((value) {
-              if (value == VPNStage.connected && _vpnStatusTimer == null) {
-                _createTimer();
-              }
-              return lastStage?.call(value);
-            }),
-          ]);
-        });
+    return _channelControl.invokeMethod("initialize", {
+      "groupIdentifier": groupIdentifier,
+      "providerBundleIdentifier": providerBundleIdentifier,
+      "localizedDescription": localizedDescription,
+    }).then((value) {
+      Future.wait([
+        status().then((value) => lastStatus?.call(value)),
+        stage().then((value) {
+          if (value == VPNStage.connected && _vpnStatusTimer == null) {
+            _createTimer();
+          }
+          return lastStage?.call(value);
+        }),
+      ]);
+    });
   }
 
   ///Connect to VPN
@@ -242,14 +240,12 @@ class OpenVPN {
             var data = jsonDecode(value);
             var connectedOn =
                 DateTime.tryParse(data["connected_on"].toString()) ??
-                _tempDateTime ??
-                DateTime.now();
-            String byteIn = data["byte_in"] != null
-                ? data["byte_in"].toString()
-                : "0";
-            String byteOut = data["byte_out"] != null
-                ? data["byte_out"].toString()
-                : "0";
+                    _tempDateTime ??
+                    DateTime.now();
+            String byteIn =
+                data["byte_in"] != null ? data["byte_in"].toString() : "0";
+            String byteOut =
+                data["byte_out"] != null ? data["byte_out"].toString() : "0";
             if (byteIn.trim().isEmpty) byteIn = "0";
             if (byteOut.trim().isEmpty) byteOut = "0";
             return VpnStatus(
@@ -321,8 +317,8 @@ class OpenVPN {
     }
     var indexStage = VPNStage.values.indexWhere(
       (element) => element.toString().trim().toLowerCase().contains(
-        stage.toString().trim().toLowerCase(),
-      ),
+            stage.toString().trim().toLowerCase(),
+          ),
     );
     if (indexStage >= 0) return VPNStage.values[indexStage];
     return VPNStage.unknown;

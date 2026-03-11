@@ -23,6 +23,5 @@
 /// await vpn.connect(configContent, tunnelName);
 /// ```
 
-
 export 'src/wireguard_engine.dart';
 export 'src/model/wireguard_status.dart';
