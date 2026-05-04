@@ -50,6 +50,13 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
             case "stage":
                 result(SwiftAxeVPNFlutterPlugin.utils.currentStatus())
                 break;
+            case "diagnostics":
+                result(SwiftAxeVPNFlutterPlugin.utils.diagnosticsSnapshot())
+                break;
+            case "clearDiagnostics":
+                SwiftAxeVPNFlutterPlugin.utils.clearDiagnostics()
+                result(nil)
+                break;
             case "initialize":
                 let providerBundleIdentifier: String? = (call.arguments as? [String: Any])?["providerBundleIdentifier"] as? String
                 let localizedDescription: String? = (call.arguments as? [String: Any])?["localizedDescription"] as? String
@@ -212,11 +219,89 @@ class VPNUtils {
     var groupIdentifier : String?
     var stage : FlutterEventSink!
     var vpnStageObserver : NSObjectProtocol?
+
+    private var sharedDefaults: UserDefaults? {
+        guard let groupIdentifier else { return nil }
+        return UserDefaults(suiteName: groupIdentifier)
+    }
+
+    private func normalizedString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    func diagnosticsSnapshot() -> [String: Any] {
+        [
+            "vpnStage": normalizedString(sharedDefaults?.string(forKey: "vpnStage")) as Any,
+            "lastError": normalizedString(sharedDefaults?.string(forKey: "lastError")) as Any,
+            "lastLog": normalizedString(sharedDefaults?.string(forKey: "lastLog")) as Any,
+            "connectedOn": normalizedString(sharedDefaults?.string(forKey: "connected_on")) as Any,
+            "connectionUpdate": normalizedString(sharedDefaults?.string(forKey: "connectionUpdate")) as Any
+        ]
+    }
+
+    func clearDiagnostics() {
+        sharedDefaults?.removeObject(forKey: "vpnStage")
+        sharedDefaults?.removeObject(forKey: "lastError")
+        sharedDefaults?.removeObject(forKey: "lastLog")
+        sharedDefaults?.removeObject(forKey: "connected_on")
+        sharedDefaults?.removeObject(forKey: "connectionUpdate")
+    }
+
+    private func stageFromSharedDefaults() -> String? {
+        guard let sharedStage = normalizedString(sharedDefaults?.string(forKey: "vpnStage")) else {
+            return nil
+        }
+
+        switch sharedStage.uppercased() {
+        case "CONNECTED":
+            return "connected"
+        case "CONNECTING":
+            return "connecting"
+        case "DISCONNECTED":
+            return "disconnected"
+        case "DISCONNECTING":
+            return "disconnecting"
+        case "RECONNECTING":
+            return "reasserting"
+        default:
+            return sharedStage.lowercased()
+        }
+    }
+
+    private func matchingManager(from managers: [NETunnelProviderManager]?) -> NETunnelProviderManager? {
+        guard let managers else { return nil }
+
+        return managers.first { manager in
+            guard let tunnelProtocol = manager.protocolConfiguration as? NETunnelProviderProtocol else {
+                return false
+            }
+
+            let sameBundleIdentifier = tunnelProtocol.providerBundleIdentifier == providerBundleIdentifier
+            let sameDescription = localizedDescription == nil || manager.localizedDescription == localizedDescription
+            return sameBundleIdentifier && sameDescription
+        }
+    }
+
+    private func extractServerAddress(from config: String) -> String {
+        for rawLine in config.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("remote ") else { continue }
+
+            let components = line.split(separator: " ")
+            if components.count >= 2 {
+                return String(components[1])
+            }
+        }
+
+        return "OpenVPN"
+    }
     
     func loadProviderManager(completion:@escaping (_ error : Error?) -> Void)  {
         NETunnelProviderManager.loadAllFromPreferences { (managers, error)  in
             if error == nil {
-                self.providerManager = managers?.first ?? NETunnelProviderManager()
+                self.providerManager = self.matchingManager(from: managers) ?? NETunnelProviderManager()
                 completion(nil)
             } else {
                 completion(error)
@@ -225,29 +310,7 @@ class VPNUtils {
     }
     
     func onVpnStatusChanged(notification : NEVPNStatus) {
-        switch notification {
-        case NEVPNStatus.connected:
-            stage?("connected")
-            break;
-        case NEVPNStatus.connecting:
-            stage?("connecting")
-            break;
-        case NEVPNStatus.disconnected:
-            stage?("disconnected")
-            break;
-        case NEVPNStatus.disconnecting:
-            stage?("disconnecting")
-            break;
-        case NEVPNStatus.invalid:
-            stage?("invalid")
-            break;
-        case NEVPNStatus.reasserting:
-            stage?("reasserting")
-            break;
-        default:
-            stage?("null")
-            break;
-        }
+        stage?(onVpnStatusChangedString(notification: notification) ?? "null")
     }
     
     func onVpnStatusChangedString(notification : NEVPNStatus?) -> String?{
@@ -273,6 +336,10 @@ class VPNUtils {
     }
     
     func currentStatus() -> String? {
+        if let sharedStage = stageFromSharedDefaults() {
+            return sharedStage
+        }
+
         if self.providerManager != nil {
             return onVpnStatusChangedString(notification: self.providerManager.connection.status)}
         else{
@@ -281,19 +348,39 @@ class VPNUtils {
     }
     
     func configureVPN(config: String?, username : String?,password : String?,completion:@escaping (_ error : Error?) -> Void) {
-        let configData = config
+        guard let config = normalizedString(config) else {
+            completion(NSError(domain: "AxeVPN", code: -2, userInfo: [NSLocalizedDescriptionKey: "Config is empty"]))
+            return
+        }
+
+        if self.providerManager == nil {
+            self.providerManager = NETunnelProviderManager()
+        }
+
+        let sanitizedUsername = normalizedString(username)
+        let sanitizedPassword = normalizedString(password)
+        sharedDefaults?.removeObject(forKey: "vpnStage")
+        sharedDefaults?.removeObject(forKey: "lastError")
+
         self.providerManager?.loadFromPreferences { error in
             if error == nil {
                 let tunnelProtocol = NETunnelProviderProtocol()
-                tunnelProtocol.serverAddress = ""
+                tunnelProtocol.serverAddress = self.extractServerAddress(from: config)
                 tunnelProtocol.providerBundleIdentifier = self.providerBundleIdentifier
-                let nullData = "".data(using: .utf8)
-                tunnelProtocol.providerConfiguration = [
-                    "config": configData?.data(using: .utf8) ?? nullData!,
-                    "groupIdentifier": self.groupIdentifier?.data(using: .utf8) ?? nullData!,
-                    "username" : username?.data(using: .utf8) ?? nullData!,
-                    "password" : password?.data(using: .utf8) ?? nullData!
+                var providerConfiguration: [String: Data] = [
+                    "config": config.data(using: .utf8) ?? Data(),
+                    "groupIdentifier": (self.groupIdentifier ?? "").data(using: .utf8) ?? Data()
                 ]
+
+                if let sanitizedUsername {
+                    providerConfiguration["username"] = sanitizedUsername.data(using: .utf8)
+                }
+
+                if let sanitizedPassword {
+                    providerConfiguration["password"] = sanitizedPassword.data(using: .utf8)
+                }
+
+                tunnelProtocol.providerConfiguration = providerConfiguration
                 tunnelProtocol.disconnectOnSleep = false
                 self.providerManager.protocolConfiguration = tunnelProtocol
                 self.providerManager.localizedDescription = self.localizedDescription // the title of the VPN profile which will appear on Settings
@@ -319,10 +406,10 @@ class VPNUtils {
                                     self?.onVpnStatusChanged(notification: status)
                                 }
                                 
-                                if username != nil && password != nil{
+                                if let sanitizedUsername, let sanitizedPassword {
                                     let options: [String : NSObject] = [
-                                        "username": username! as NSString,
-                                        "password": password! as NSString
+                                        "username": sanitizedUsername as NSString,
+                                        "password": sanitizedPassword as NSString
                                     ]
                                     try self.providerManager.connection.startVPNTunnel(options: options)
                                 }else{

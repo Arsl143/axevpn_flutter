@@ -215,6 +215,20 @@ class OpenVPN {
     return _strToStage(stage ?? "disconnected");
   }
 
+  /// Get the latest iOS-side VPN extension diagnostics stored in the app group.
+  Future<Map<String, dynamic>> diagnostics() async {
+    final value = await _channelControl.invokeMethod("diagnostics");
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return <String, dynamic>{};
+  }
+
+  /// Clear previously stored native VPN extension diagnostics.
+  Future<void> clearDiagnostics() async {
+    await _channelControl.invokeMethod("clearDiagnostics");
+  }
+
   ///Get latest connection status
   Future<VpnStatus> status() {
     //Have to check if user already connected to get real data
