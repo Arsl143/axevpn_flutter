@@ -24,6 +24,8 @@ import com.wireguard.crypto.Key;
 
 import com.axevpn.flutter.wireguard.AxeWireGuardService;
 import com.axevpn.flutter.wireguard.AxeWireGuardVpnService;
+import com.axevpn.flutter.v2ray.V2RayFlutterPlugin;
+import com.axevpn.flutter.openconnect.OpenConnectFlutterPlugin;
 
 import de.blinkt.openvpn.OnVPNStatusChangeListener;
 import de.blinkt.openvpn.VPNHelper;
@@ -36,13 +38,13 @@ import io.flutter.plugin.common.MethodChannel;
 
 /**
  * AxeVPN Flutter Plugin - Enhanced OpenVPN Integration
- * 
+ *
  * This plugin provides comprehensive OpenVPN connectivity for Flutter applications
  * with full support for Android 15+ (16 KB page size) and modern Android features.
- * 
+ *
  * Version: 2.0.0
  * Package: com.axevpn.flutter.openvpn
- * 
+ *
  * Features:
  * - OpenVPN connection management
  * - Real-time connection status monitoring
@@ -50,7 +52,7 @@ import io.flutter.plugin.common.MethodChannel;
  * - Android 15+ compatible with 16 KB page sizes
  * - Package bypass for split tunneling
  * - Automatic reconnection handling
- * 
+ *
  * @author AxeVPN Team
  * @since 2.0.0
  */
@@ -69,32 +71,36 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
     private MethodChannel wgControlMethod;
     private EventChannel wgStageEvent;
     private EventChannel.EventSink wgStageSink;
-    
+
     private static final String EVENT_CHANNEL_WG_STAGE = "com.axevpn.flutter.wireguard/vpnstage";
     private static final String METHOD_CHANNEL_WG_CONTROL = "com.axevpn.flutter.wireguard/vpncontrol";
 
     private static String config = "", username = "", password = "", name = "";
     private static ArrayList<String> bypassPackages;
-    
+
     @SuppressLint("StaticFieldLeak")
     private static VPNHelper vpnHelper;
-    
+
     // ✅ WireGuard backend
     private Backend wgBackend;
     private WireGuardTunnel currentTunnel;
     private String wgStage = "disconnected";
-    
+
     // Pending WireGuard connection data (for after VPN permission)
     private String pendingWgConfig;
     private String pendingWgTunnelName;
-    
+
     // WireGuard VPN service reference
     private static final int VPN_REQUEST_CODE_WG = 25;
     private boolean isWgConnecting = false;
-    
+
     private Activity activity;
     private ActivityPluginBinding activityBinding;
     Context mContext;
+
+    // ── Delegated protocol sub-plugins ────────────────────────────────────
+    private final V2RayFlutterPlugin v2rayPlugin = new V2RayFlutterPlugin();
+    private final OpenConnectFlutterPlugin openConnectPlugin = new OpenConnectFlutterPlugin();
 
     // ✅ CRITICAL: Load native libraries required for OpenVPN JNI
     // Updated with ics-openvpn v0.7.64 (16 KB page size compatible)
@@ -106,7 +112,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         } catch (UnsatisfiedLinkError e) {
             android.util.Log.e("AxeVPN", "❌ Failed to load ovpnutil: " + e.getMessage());
         }
-        
+
         // Load additional OpenVPN libraries (all from ics-openvpn v0.7.64 with 16 KB support)
         String[] libraries = {"openvpn", "ovpnexec", "osslutil", "osslspeedtest", "ovpn3"};
         for (String lib : libraries) {
@@ -132,13 +138,13 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
         mContext = binding.getApplicationContext();
-        
+
         // ✅ Initialize WireGuard backend with VPN service
         wgBackend = new GoBackend(mContext);
-        
+
         // Setup notification service disconnect callback
         setupWireGuardServiceCallback();
-        
+
         // Setup OpenVPN channels
         vpnStageEvent = new EventChannel(binding.getBinaryMessenger(), EVENT_CHANNEL_VPN_STAGE);
         vpnControlMethod = new MethodChannel(binding.getBinaryMessenger(), METHOD_CHANNEL_VPN_CONTROL);
@@ -157,11 +163,11 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                 }
             }
         });
-        
+
         // ✅ Setup WireGuard channels
         wgStageEvent = new EventChannel(binding.getBinaryMessenger(), EVENT_CHANNEL_WG_STAGE);
         wgControlMethod = new MethodChannel(binding.getBinaryMessenger(), METHOD_CHANNEL_WG_CONTROL);
-        
+
         // Setup WireGuard stage event stream handler
         wgStageEvent.setStreamHandler(new EventChannel.StreamHandler() {
             @Override
@@ -181,10 +187,14 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
 
         // Setup OpenVPN control method handler
         setupOpenVPNMethodHandler();
-        
+
         // ✅ Setup WireGuard control method handler
         setupWireGuardMethodHandler();
-    }    
+
+        // ✅ Delegate V2Ray and OpenConnect plugins
+        v2rayPlugin.onAttachedToEngine(binding);
+        openConnectPlugin.onAttachedToEngine(binding);
+    }
     /**
      * Setup WireGuard notification service disconnect callback
      */
@@ -199,7 +209,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                 });
             }
         }, 500);
-    }    
+    }
     /**
      * Setup OpenVPN method channel handler
      */
@@ -228,7 +238,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                             }
 
                             @Override
-                            public void onConnectionStatusChanged(String duration, String lastPacketReceive, 
+                            public void onConnectionStatusChanged(String duration, String lastPacketReceive,
                                                                  String byteIn, String byteOut) {
                                 // Connection stats updated
                             }
@@ -304,7 +314,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             }
         });
     }
-    
+
     /**
      * ✅ Setup WireGuard method channel handler
      */
@@ -317,23 +327,23 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                         updateWgStage("disconnected");
                         result.success(null);
                         break;
-                        
+
                     case "connect":
                         handleWgConnect(call, result);
                         break;
-                        
+
                     case "disconnect":
                         handleWgDisconnect(result);
                         break;
-                        
+
                     case "status":
                         handleWgStatus(result);
                         break;
-                        
+
                     case "stage":
                         result.success(wgStage);
                         break;
-                        
+
                     default:
                         result.notImplemented();
                         break;
@@ -344,32 +354,32 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             }
         });
     }
-    
+
     /**
      * ✅ Handle WireGuard connect
      */
     private void handleWgConnect(io.flutter.plugin.common.MethodCall call, MethodChannel.Result result) {
         String config = call.argument("config");
         String tunnelName = call.argument("tunnelName");
-        
+
         if (config == null || config.isEmpty()) {
             result.error("INVALID_CONFIG", "WireGuard config required", null);
             return;
         }
-        
+
         if (tunnelName == null || tunnelName.isEmpty()) {
             tunnelName = "AxeVPN";
         }
-        
+
         try {
             // Validate config
             ByteArrayInputStream configStream = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8));
             Config wgConfig = Config.parse(configStream);
             currentTunnel = new WireGuardTunnel(tunnelName, wgConfig);
-            
+
             android.util.Log.i("AxeVPN-WG", "Connecting: " + tunnelName);
             updateWgStage("preparing");
-            
+
             // Check VPN permission
             Intent permission = VpnService.prepare(mContext);
             if (permission != null && activity != null) {
@@ -391,7 +401,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             result.error("CONNECT_FAILED", e.getMessage(), null);
         }
     }
-    
+
     /**
      * ✅ Handle WireGuard disconnect - called from Flutter
      */
@@ -400,7 +410,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         handleFullWgDisconnect();
         result.success(null);
     }
-    
+
     /**
      * ✅ Perform full WireGuard disconnect
      */
@@ -408,7 +418,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         android.util.Log.i("AxeVPN-WG", "Performing full disconnect");
         isWgConnecting = false;
         updateWgStage("disconnecting");
-        
+
         // Stop notification service first
         try {
             Intent stopIntent = new Intent(mContext, AxeWireGuardService.class);
@@ -417,7 +427,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         } catch (Exception e) {
             android.util.Log.e("AxeVPN-WG", "Error stopping notification service", e);
         }
-        
+
         // Stop VPN service
         try {
             Intent vpnStopIntent = new Intent(mContext, AxeWireGuardVpnService.class);
@@ -426,17 +436,17 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         } catch (Exception e) {
             android.util.Log.e("AxeVPN-WG", "Error stopping VPN service", e);
         }
-        
+
         // Stop tunnel via backend
         if (currentTunnel != null) {
             final WireGuardTunnel tunnelToStop = currentTunnel;
-            
+
             new Thread(() -> {
                 try {
                     android.util.Log.d("AxeVPN-WG", "Stopping tunnel: " + tunnelToStop.getName());
                     wgBackend.setState(tunnelToStop, Tunnel.State.DOWN, null);
                     Thread.sleep(300);
-                    
+
                     if (activity != null) {
                         activity.runOnUiThread(() -> {
                             currentTunnel = null;
@@ -462,7 +472,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             updateWgStage("disconnected");
         }
     }
-    
+
     /**
      * ✅ Handle WireGuard status
      */
@@ -470,7 +480,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         try {
             org.json.JSONObject status = new org.json.JSONObject();
             status.put("duration", "0");
-            
+
             if (currentTunnel != null) {
                 try {
                     Statistics stats = wgBackend.getStatistics(currentTunnel);
@@ -479,7 +489,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                         long totalBytesIn = 0;
                         long totalBytesOut = 0;
                         long lastHandshake = 0;
-                        
+
                         for (Key peer : peers) {
                             Statistics.PeerStats peerStats = stats.peer(peer);
                             if (peerStats != null) {
@@ -488,7 +498,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                                 lastHandshake = Math.max(lastHandshake, peerStats.latestHandshakeEpochMillis());
                             }
                         }
-                        
+
                         status.put("byte_in", String.valueOf(totalBytesIn));
                         status.put("byte_out", String.valueOf(totalBytesOut));
                         status.put("last_packet_receive", String.valueOf(lastHandshake));
@@ -507,13 +517,13 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                 status.put("byte_out", "0");
                 status.put("last_packet_receive", "0");
             }
-            
+
             result.success(status.toString());
         } catch (org.json.JSONException e) {
             result.error("STATUS_ERROR", e.getMessage(), null);
         }
     }
-    
+
     /**
      * ✅ Start WireGuard VPN
      */
@@ -522,10 +532,10 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             android.util.Log.w("AxeVPN-WG", "Already connecting, ignoring duplicate request");
             return;
         }
-        
+
         isWgConnecting = true;
         updateWgStage("connecting");
-        
+
         // Start notification service
         try {
             Intent notificationIntent = new Intent(mContext, AxeWireGuardService.class);
@@ -537,7 +547,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                 mContext.startService(notificationIntent);
             }
             android.util.Log.d("AxeVPN-WG", "Notification service started");
-            
+
             // Setup callback after service starts
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 setupWireGuardServiceCallback();
@@ -545,7 +555,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         } catch (Exception e) {
             android.util.Log.e("AxeVPN-WG", "Failed to start notification service", e);
         }
-        
+
         // Start VPN service
         try {
             Intent vpnIntent = new Intent(mContext, AxeWireGuardVpnService.class);
@@ -564,13 +574,13 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             updateWgStage("error");
             return;
         }
-        
+
         // Start tunnel via backend
         new Thread(() -> {
             try {
                 android.util.Log.d("AxeVPN-WG", "Starting GoBackend tunnel");
                 wgBackend.setState(currentTunnel, Tunnel.State.UP, config);
-                
+
                 if (activity != null) {
                     activity.runOnUiThread(() -> {
                         isWgConnecting = false;
@@ -592,7 +602,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             }
         }).start();
     }
-    
+
     /**
      * ✅ Update WireGuard stage
      */
@@ -627,6 +637,8 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         if (vpnControlMethod != null) {
             vpnControlMethod.setMethodCallHandler(null);
         }
+        v2rayPlugin.onDetachedFromEngine(binding);
+        openConnectPlugin.onDetachedFromEngine(binding);
     }
 
     /**
@@ -647,11 +659,14 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         activity = binding.getActivity();
         activityBinding = binding;
         binding.addActivityResultListener(this);
+        v2rayPlugin.onAttachedToActivity(binding);
+        openConnectPlugin.onAttachedToActivity(binding);
     }
 
     @Override
     public void onDetachedFromActivityForConfigChanges() {
-        // Activity temporarily detached
+        v2rayPlugin.onDetachedFromActivityForConfigChanges();
+        openConnectPlugin.onDetachedFromActivityForConfigChanges();
     }
 
     @Override
@@ -659,6 +674,8 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         activity = binding.getActivity();
         activityBinding = binding;
         binding.addActivityResultListener(this);
+        v2rayPlugin.onReattachedToActivityForConfigChanges(binding);
+        openConnectPlugin.onReattachedToActivityForConfigChanges(binding);
     }
 
     @Override
@@ -668,8 +685,10 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             activityBinding = null;
         }
         activity = null;
+        v2rayPlugin.onDetachedFromActivity();
+        openConnectPlugin.onDetachedFromActivity();
     }
-    
+
     /**
      * Handle activity result for VPN permission
      */
@@ -709,28 +728,28 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         }
         return false;
     }
-    
+
     /**
      * ✅ WireGuard Tunnel implementation
      */
     private static class WireGuardTunnel implements Tunnel {
         private final String name;
         private State state = State.DOWN;
-        
+
         WireGuardTunnel(String name, Config config) {
             this.name = name;
         }
-        
+
         @Override
         public String getName() {
             return name;
         }
-        
+
         @Override
         public void onStateChange(State newState) {
             state = newState;
         }
-        
+
         public State getState() {
             return state;
         }

@@ -171,4 +171,9 @@ dependencies {
     //   3. .\build_wireguard_16kb.ps1   (builds libwg-go.so)
     //   4. .\build_wg_c_libs.ps1        (builds libwg.so and libwg-quick.so)
     implementation 'com.wireguard.android:tunnel:1.0.20230706'
+
+    // ─── V2Ray / Xray core ────────────────────────────────────────────────────
+    // Go-mobile binding that wraps the Xray-core. The .aar is placed in
+    // android/libs/ and libtun2socks.so in the per-ABI jniLibs/ directories.
+    implementation(name: "libv2ray", ext: "aar")
 }
