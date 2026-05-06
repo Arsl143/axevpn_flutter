@@ -272,8 +272,11 @@ public class OpenConnectFlutterPlugin implements FlutterPlugin, ActivityAware, M
 
     void updateStage(String stage) {
         currentStage = stage;
-        if (stageSink != null && activity != null) {
-            activity.runOnUiThread(() -> stageSink.success(stage));
+        if (stageSink != null) {
+            // Use the main looper directly so stages reach Flutter even when
+            // activity is momentarily null (e.g. VPN overlay / config change).
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .post(() -> { if (stageSink != null) stageSink.success(stage); });
         }
     }
 

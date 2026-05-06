@@ -51,12 +51,15 @@ public class AxeOpenConnectVpnService extends VpnService {
     private static final int NOTIFICATION_ID = 9002;
     private static final String CHANNEL_ID = "axevpn_oc_channel";
 
-    // CSTP packet types (byte 4 of the 8-byte CSTP header)
+    // CSTP packet types (byte [6] of the 8-byte STF header: 'S','T','F',0x01,lenH,lenL,type,0x00)
     private static final int CSTP_DATA       = 0x00;
     private static final int CSTP_DPD_REQ    = 0x03;
     private static final int CSTP_DPD_RESP   = 0x04;
-    private static final int CSTP_DISCONNECT = 0x07;
-    private static final int CSTP_HDR        = 8; // header size in bytes
+    private static final int CSTP_KEEPALIVE  = 0x07; // server keepalive — no response needed
+    private static final int CSTP_DISCONNECT = 0x09; // server-initiated disconnect
+    private static final int CSTP_HDR        = 8;    // header size in bytes
+    // STF sync: 'S'(0x53) 'T'(0x54) 'F'(0x46) 0x01
+    private static final byte[] CSTP_SYNC = {0x53, 0x54, 0x46, 0x01};
 
     public static final String ACTION_CONNECT    = "com.axevpn.flutter.openconnect.CONNECT";
     public static final String ACTION_DISCONNECT = "com.axevpn.flutter.openconnect.DISCONNECT";
@@ -86,6 +89,7 @@ public class AxeOpenConnectVpnService extends VpnService {
         if (intent == null) return START_NOT_STICKY;
 
         String action = intent.getAction();
+        Log.d(TAG, "onStartCommand: action=" + action);
         if (ACTION_CONNECT.equals(action)) {
             String serverUrl  = intent.getStringExtra(EXTRA_SERVER_URL);
             String name       = intent.getStringExtra(EXTRA_TUNNEL_NAME);
@@ -94,6 +98,16 @@ public class AxeOpenConnectVpnService extends VpnService {
             String authGroup  = intent.getStringExtra(EXTRA_AUTH_GROUP);
             String servercert = intent.getStringExtra(EXTRA_SERVERCERT);
             if (serverUrl != null && username != null && password != null) {
+                // Must call startForeground() within 5 s of startService() (Android 8+).
+                // On Android 14+ (API 34), the 3-arg overload with a type is mandatory
+                // — using the 2-arg version throws MissingForegroundServiceTypeException.
+                Notification fgNotif = buildNotification(name != null ? name : "OpenConnect VPN");
+                if (Build.VERSION.SDK_INT >= 34) {
+                    startForeground(NOTIFICATION_ID, fgNotif,
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                } else {
+                    startForeground(NOTIFICATION_ID, fgNotif);
+                }
                 new Thread(() -> connectToServer(serverUrl, name, username,
                         password, authGroup, servercert), "oc-connect").start();
             } else {
@@ -139,38 +153,68 @@ public class AxeOpenConnectVpnService extends VpnService {
 
             SSLSocketFactory ssf = buildSslSocketFactory(servercert);
 
-            // ── Phase 1: Authenticate ──
+            // ── Phase 1: Authenticate (2-step: username → context cookie → password → session) ──
             broadcastStage("authenticating");
+
+            // Step 1a: POST username to /auth to get context cookie
             authSock = (SSLSocket) ssf.createSocket(host, port);
             protect(authSock);
             authSock.startHandshake();
 
-            String body = "username=" + URLEncoder.encode(username, "UTF-8")
-                        + "&password=" + URLEncoder.encode(password, "UTF-8");
+            String body1 = "username=" + URLEncoder.encode(username, "UTF-8");
             if (authGroup != null && !authGroup.isEmpty())
-                body += "&group_list=" + URLEncoder.encode(authGroup, "UTF-8");
+                body1 += "&group_list=" + URLEncoder.encode(authGroup, "UTF-8");
 
-            String authReq = "POST /+webvpn+/index.html HTTP/1.1\r\n"
+            String authReq1 = "POST /auth HTTP/1.1\r\n"
                     + "Host: " + host + "\r\n"
                     + "User-Agent: AnyConnect Android 4.10.04065\r\n"
                     + "X-AnyConnect-Platform: android\r\n"
-                    + "X-Aggregate-Auth: 1\r\n"
-                    + "X-AnyConnect-Identifier-ClientVersion: 4.10.04065\r\n"
                     + "Content-Type: application/x-www-form-urlencoded\r\n"
-                    + "Content-Length: " + body.getBytes("UTF-8").length + "\r\n"
+                    + "Content-Length: " + body1.getBytes("UTF-8").length + "\r\n"
                     + "Connection: close\r\n\r\n"
-                    + body;
+                    + body1;
 
-            OutputStream authOs = authSock.getOutputStream();
-            authOs.write(authReq.getBytes("UTF-8"));
-            authOs.flush();
+            OutputStream authOs1 = authSock.getOutputStream();
+            authOs1.write(authReq1.getBytes("UTF-8"));
+            authOs1.flush();
+
+            String contextCookie = parseAuthCookie(authSock.getInputStream());
+            safeClose(authSock);
+            authSock = null;
+
+            if (contextCookie == null || contextCookie.isEmpty()) {
+                Log.e(TAG, "Authentication step 1 failed — no context cookie received");
+                broadcastStage("denied");
+                stopSelf();
+                return;
+            }
+
+            // Step 1b: POST password with context cookie to /auth to get VPN session cookies
+            authSock = (SSLSocket) ssf.createSocket(host, port);
+            protect(authSock);
+            authSock.startHandshake();
+
+            String body2 = "password=" + URLEncoder.encode(password, "UTF-8");
+            String authReq2 = "POST /auth HTTP/1.1\r\n"
+                    + "Host: " + host + "\r\n"
+                    + "User-Agent: AnyConnect Android 4.10.04065\r\n"
+                    + "X-AnyConnect-Platform: android\r\n"
+                    + "Cookie: " + contextCookie + "\r\n"
+                    + "Content-Type: application/x-www-form-urlencoded\r\n"
+                    + "Content-Length: " + body2.getBytes("UTF-8").length + "\r\n"
+                    + "Connection: close\r\n\r\n"
+                    + body2;
+
+            OutputStream authOs2 = authSock.getOutputStream();
+            authOs2.write(authReq2.getBytes("UTF-8"));
+            authOs2.flush();
 
             String sessionCookie = parseAuthCookie(authSock.getInputStream());
             safeClose(authSock);
             authSock = null;
 
             if (sessionCookie == null || sessionCookie.isEmpty()) {
-                Log.e(TAG, "Authentication failed — no session cookie received");
+                Log.e(TAG, "Authentication step 2 failed — no session cookie received");
                 broadcastStage("denied");
                 stopSelf();
                 return;
@@ -187,7 +231,7 @@ public class AxeOpenConnectVpnService extends VpnService {
                     + "Cookie: " + sessionCookie + "\r\n"
                     + "X-CSTP-Version: 1\r\n"
                     + "X-CSTP-Hostname: android-axevpn\r\n"
-                    + "X-CSTP-Accept-Encoding: lzs,deflate\r\n"
+                    + "X-CSTP-Accept-Encoding: identity\r\n"
                     + "X-CSTP-MTU: 1500\r\n"
                     + "X-CSTP-Address-Type: IPv4\r\n"
                     + "X-CSTP-Default-Domain: \r\n"
@@ -219,7 +263,7 @@ public class AxeOpenConnectVpnService extends VpnService {
             // ── Phase 4: Forward packets ──
             this.tunnelSocket = tunSock;
             running = true;
-            startForeground(NOTIFICATION_ID, buildNotification(name != null ? name : "OpenConnect VPN"));
+            // startForeground() was already called in onStartCommand().
             broadcastStage("connected");
             forwardPackets(tunSock.getInputStream(), tos, cfg.mtu > 0 ? cfg.mtu : 1406);
 
@@ -303,6 +347,9 @@ public class AxeOpenConnectVpnService extends VpnService {
                 String cookie = line.substring(11).trim();
                 int sc = cookie.indexOf(';');
                 if (sc >= 0) cookie = cookie.substring(0, sc).trim();
+                // Skip empty-value cookies (e.g. clearing cookies like webvpnc=)
+                int eq = cookie.indexOf('=');
+                if (eq < 0 || cookie.substring(eq + 1).isEmpty()) continue;
                 if (cookies.length() > 0) cookies.append("; ");
                 cookies.append(cookie);
             }
@@ -332,6 +379,7 @@ public class AxeOpenConnectVpnService extends VpnService {
         VpnTunnelConfig cfg = new VpnTunnelConfig();
         String line;
         while ((line = readLine(is)) != null && !line.isEmpty()) {
+            Log.d(TAG, "tunnel hdr: [" + line + "]");
             String lower = line.toLowerCase(Locale.US);
             if (lower.startsWith("x-cstp-address:"))
                 cfg.address = line.substring(15).trim();
@@ -387,13 +435,31 @@ public class AxeOpenConnectVpnService extends VpnService {
         Thread tunToSock = new Thread(() -> {
             byte[] pkt = new byte[mtu];
             byte[] frm = new byte[mtu + CSTP_HDR];
+            // establish() opens the TUN fd with O_NONBLOCK. Use Os.poll() to block
+            // until a packet is available so we don't busy-spin or exit prematurely.
+            android.system.StructPollfd[] pollFds = {new android.system.StructPollfd()};
+            pollFds[0].fd = tunInterface.getFileDescriptor();
+            pollFds[0].events = (short) android.system.OsConstants.POLLIN;
             try (FileInputStream fis = new FileInputStream(tunInterface.getFileDescriptor())) {
                 while (running) {
+                    try {
+                        android.system.Os.poll(pollFds, 500);
+                    } catch (android.system.ErrnoException e) {
+                        if (e.errno == android.system.OsConstants.EINTR) continue;
+                        Log.e(TAG, "TUN poll error, errno=" + e.errno); break;
+                    }
+                    if ((pollFds[0].revents & android.system.OsConstants.POLLIN) == 0) continue;
                     int n = fis.read(pkt, 0, mtu);
-                    if (n <= 0) break;
-                    frm[0] = 0; frm[1] = 0;
-                    frm[2] = (byte) (n >> 8); frm[3] = (byte) (n & 0xFF);
-                    frm[4] = CSTP_DATA; frm[5] = 0; frm[6] = 0; frm[7] = 0;
+                    if (n < 0) {
+                        Log.e(TAG, "TUN→socket: TUN fd read returned " + n + ", exiting");
+                        break;
+                    }
+                    if (n == 0) continue;
+                    // Build outgoing STF frame: sync[0-3], lenH[4], lenL[5], type[6], reserved[7]
+                    frm[0] = CSTP_SYNC[0]; frm[1] = CSTP_SYNC[1];
+                    frm[2] = CSTP_SYNC[2]; frm[3] = CSTP_SYNC[3];
+                    frm[4] = (byte) (n >> 8); frm[5] = (byte) (n & 0xFF);
+                    frm[6] = CSTP_DATA;    frm[7] = 0;
                     System.arraycopy(pkt, 0, frm, CSTP_HDR, n);
                     synchronized (sockOut) {
                         sockOut.write(frm, 0, CSTP_HDR + n);
@@ -406,21 +472,41 @@ public class AxeOpenConnectVpnService extends VpnService {
             running = false;
         }, "oc-tun-to-sock");
 
-        // Socket → TUN thread
+            // Socket → TUN thread
         Thread sockToTun = new Thread(() -> {
             byte[] hdr  = new byte[CSTP_HDR];
-            byte[] dpdResp = new byte[CSTP_HDR]; // pre-built DPD response frame
-            dpdResp[4] = CSTP_DPD_RESP;
+            // Pre-built DPD response frame with correct STF sync
+            byte[] dpdResp = {CSTP_SYNC[0], CSTP_SYNC[1], CSTP_SYNC[2], CSTP_SYNC[3],
+                              0x00, 0x00, (byte) CSTP_DPD_RESP, 0x00};
             try (FileOutputStream fos = new FileOutputStream(tunInterface.getFileDescriptor())) {
                 while (running) {
-                    if (!readFully(sockIn, hdr, CSTP_HDR)) break;
-                    int dataLen = ((hdr[2] & 0xFF) << 8) | (hdr[3] & 0xFF);
-                    int type    = hdr[4] & 0xFF;
-                    if (dataLen < 0 || dataLen > 65536) {
+                    if (!readFully(sockIn, hdr, CSTP_HDR)) {
+                        Log.e(TAG, "socket\u2192TUN: EOF reading CSTP header (server closed connection)");
+                        break;
+                    }
+                    // Validate CSTP sync bytes and dump raw header for diagnostics
+                    Log.d(TAG, String.format("CSTP hdr: %02x %02x %02x %02x  %02x %02x %02x %02x",
+                            hdr[0]&0xFF, hdr[1]&0xFF, hdr[2]&0xFF, hdr[3]&0xFF,
+                            hdr[4]&0xFF, hdr[5]&0xFF, hdr[6]&0xFF, hdr[7]&0xFF));
+                    if (hdr[0] != CSTP_SYNC[0] || hdr[1] != CSTP_SYNC[1]
+                            || hdr[2] != CSTP_SYNC[2] || hdr[3] != CSTP_SYNC[3]) {
+                        Log.e(TAG, String.format(
+                                "Invalid STF sync: %02x %02x %02x %02x — stream misaligned",
+                                hdr[0]&0xFF, hdr[1]&0xFF, hdr[2]&0xFF, hdr[3]&0xFF));
+                        break;
+                    }
+                    // Real STF header: sync[0-3], lenH[4], lenL[5], type[6], reserved[7]
+                    int dataLen = ((hdr[4] & 0xFF) << 8) | (hdr[5] & 0xFF);
+                    int type    = hdr[6] & 0xFF;
+                    Log.d(TAG, "CSTP pkt type=" + type + " len=" + dataLen);
+                    if (dataLen > 65535) {
                         Log.e(TAG, "Bogus CSTP length " + dataLen); break;
                     }
                     byte[] data = new byte[dataLen];
-                    if (dataLen > 0 && !readFully(sockIn, data, dataLen)) break;
+                    if (dataLen > 0 && !readFully(sockIn, data, dataLen)) {
+                        Log.e(TAG, "socket\u2192TUN: EOF reading CSTP data (expected " + dataLen + " bytes)");
+                        break;
+                    }
                     switch (type) {
                         case CSTP_DATA:
                             fos.write(data);
@@ -436,11 +522,12 @@ public class AxeOpenConnectVpnService extends VpnService {
                             running = false;
                             break;
                         default:
-                            break; // skip unknown types
+                            Log.w(TAG, "Unknown CSTP type " + type + ", skipping");
+                            break;
                     }
                 }
             } catch (Exception e) {
-                if (running) Log.e(TAG, "socket→TUN error", e);
+                Log.e(TAG, "socket\u2192TUN error", e);
             }
             running = false;
         }, "oc-sock-to-tun");
@@ -498,8 +585,12 @@ public class AxeOpenConnectVpnService extends VpnService {
     }
 
     private void broadcastStage(String stage) {
+        Log.d(TAG, "broadcastStage: " + stage);
         Intent i = new Intent(BROADCAST_STAGE);
         i.putExtra(EXTRA_STAGE, stage);
+        // setPackage() is required on Android 14+ so the broadcast reaches
+        // a RECEIVER_NOT_EXPORTED receiver registered in the same app.
+        i.setPackage(getPackageName());
         sendBroadcast(i);
     }
 

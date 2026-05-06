@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" android:minSdkVersion="34" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" android:minSdkVersion="34" />
 
     <application>
         <!-- ✅ CRITICAL: 16KB page size support metadata for Android 15+ -->
@@ -35,9 +35,10 @@
             android:permission="android.permission.BIND_VPN_SERVICE" />
 
         <!-- OpenConnect (Cisco AnyConnect-compatible) TUN service -->
+        <!-- specialUse is required on Android 14+ (targetSDK>=34) for VPN services -->
         <service
             android:name="com.axevpn.flutter.openconnect.AxeOpenConnectVpnService"
-            android:foregroundServiceType="systemExempted"
+            android:foregroundServiceType="specialUse"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE" />
 
