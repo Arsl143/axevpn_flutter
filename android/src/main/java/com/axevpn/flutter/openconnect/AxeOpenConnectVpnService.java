@@ -220,6 +220,14 @@ public class AxeOpenConnectVpnService extends VpnService {
                 return;
             }
 
+            // ocserv CONNECT needs ONLY the webvpn= cookie — strip webvpncontext and webvpnc
+            for (String part : sessionCookie.split("; ")) {
+                if (part.startsWith("webvpn=")) { // matches webvpn= but NOT webvpnc= or webvpncontext=
+                    sessionCookie = part;
+                    break;
+                }
+            }
+
             // ── Phase 2: Open CSTP tunnel ──
             broadcastStage("connecting");
             tunSock = (SSLSocket) ssf.createSocket(host, port);
