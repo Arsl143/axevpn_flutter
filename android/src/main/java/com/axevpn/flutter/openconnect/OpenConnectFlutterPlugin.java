@@ -163,7 +163,14 @@ public class OpenConnectFlutterPlugin implements FlutterPlugin, ActivityAware, M
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         switch (call.method) {
             case "initialize":
-                updateStage("disconnected");
+                // If the OC foreground service is still running (e.g. app was killed and
+                // restarted), broadcast "connected" so the Flutter UI correctly shows the
+                // VPN as active. Otherwise broadcast "disconnected" to reset state.
+                if (AxeOpenConnectVpnService.isRunning) {
+                    updateStage("connected");
+                } else {
+                    updateStage("disconnected");
+                }
                 result.success(null);
                 break;
 
@@ -181,6 +188,10 @@ public class OpenConnectFlutterPlugin implements FlutterPlugin, ActivityAware, M
 
             case "stage":
                 result.success(currentStage);
+                break;
+
+            case "isRunning":
+                result.success(AxeOpenConnectVpnService.isRunning);
                 break;
 
             default:

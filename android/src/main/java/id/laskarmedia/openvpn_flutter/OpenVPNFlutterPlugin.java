@@ -93,11 +93,29 @@ public class OpenVPNFlutterPlugin implements FlutterPlugin, ActivityAware {
                     result.success(updateVPNStages());
                     break;
                 case "disconnect":
-                    if (vpnHelper == null)
-                        result.error("-1", "VPNEngine need to be initialize", "");
-
-                    vpnHelper.stopVPN();
+                    if (vpnHelper == null) {
+                        if (activity != null) {
+                            try {
+                                vpnHelper = new VPNHelper(activity);
+                            } catch (Exception e) {
+                                result.error("-1", "Cannot initialize VPNHelper: " + e.getMessage(), "");
+                                return;
+                            }
+                        } else {
+                            result.error("-1", "VPNEngine need to be initialized", "");
+                            return;
+                        }
+                    }
+                    try {
+                        vpnHelper.stopVPN();
+                    } catch (Exception ignored) {}
+                    // Belt-and-suspenders: stop the OpenVPN service directly
+                    try {
+                        Intent stopIntent = new Intent(mContext, OpenVPNService.class);
+                        mContext.stopService(stopIntent);
+                    } catch (Exception ignored) {}
                     updateStage("disconnected");
+                    result.success(null);
                     break;
                 case "connect":
                     if (vpnHelper == null) {

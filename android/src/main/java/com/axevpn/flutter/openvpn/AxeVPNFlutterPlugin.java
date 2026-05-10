@@ -78,6 +78,10 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
     private static String config = "", username = "", password = "", name = "";
     private static ArrayList<String> bypassPackages;
 
+    // Set to true when a connect() call is in flight so that any pending
+    // delayed DISCONNECT_VPN intent is cancelled before it kills the new session.
+    private volatile boolean _connectingInProgress = false;
+
     @SuppressLint("StaticFieldLeak")
     private static VPNHelper vpnHelper;
 
@@ -231,18 +235,7 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                             return;
                         }
                         vpnHelper = new VPNHelper(activity);
-                        vpnHelper.setOnVPNStatusChangeListener(new OnVPNStatusChangeListener() {
-                            @Override
-                            public void onVPNStatusChanged(String status) {
-                                updateStage(status);
-                            }
-
-                            @Override
-                            public void onConnectionStatusChanged(String duration, String lastPacketReceive,
-                                                                 String byteIn, String byteOut) {
-                                // Connection stats updated
-                            }
-                        });
+                        registerVPNStatusListener();
                         result.success(updateVPNStages());
                         break;
 
@@ -251,8 +244,25 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                             result.error("-1", "VPNEngine needs to be initialized", "Call initialize() first");
                             return;
                         }
-                        vpnHelper.stopVPN();
+                        // 1. Kill native OpenVPN thread and reset vpnStart=false.
+                        //    vpnStart MUST be false before the next startVPN() call —
+                        //    VPNHelper.startVPN() (no-arg) silently skips connecting when
+                        //    vpnStart==true, so any subsequent connect would do nothing.
+                        _connectingInProgress = false;
+                        try {
+                            vpnHelper.stopVPN();
+                        } catch (Exception stopEx) {
+                            // OpenVPNService may already be null/dead — safe to ignore;
+                            // vpnStart should already be false if the process exited naturally.
+                            android.util.Log.w("AxeVPN", "stopVPN() in disconnect: " + stopEx.getMessage());
+                        }
+                        // 2. Tell Dart the VPN is disconnected immediately so the UI updates.
                         updateStage("disconnected");
+                        // 3. Send DISCONNECT_VPN to OpenVPNService after a short delay so the
+                        //    service tears down the tun/removes the VPN key icon.
+                        //    The delay + _connectingInProgress flag ensures a rapid reconnect
+                        //    cancels this intent before it can kill the new session.
+                        sendDisconnectVpnIntentDelayed();
                         result.success(true);
                         break;
 
@@ -272,6 +282,20 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                             result.error("-2", "OpenVPN config is required", "Provide valid .ovpn configuration");
                             return;
                         }
+
+                        // Cancel any pending DISCONNECT_VPN intent before connecting.
+                        _connectingInProgress = true;
+                        // Always reset vpnStart=false before startVPN() — the flag is static and
+                        // persists if the previous OpenVPN process exited without an explicit
+                        // disconnect() call (e.g. server timeout).  Re-register the listener
+                        // immediately after because stopVPN() unregisters the broadcastReceiver.
+                        try {
+                            vpnHelper.stopVPN();
+                        } catch (Exception stopEx) {
+                            // OpenVPNService may already be null/dead — safe to ignore.
+                            android.util.Log.w("AxeVPN", "stopVPN() in connect: " + stopEx.getMessage());
+                        }
+                        registerVPNStatusListener();
 
                         final Intent permission = VpnService.prepare(activity);
                         if (permission != null) {
@@ -313,6 +337,57 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                 result.error("-99", "Unexpected error", e.getMessage());
             }
         });
+    }
+
+    /**
+     * Sends de.blinkt.openvpn.DISCONNECT_VPN to OpenVPNService via startService().
+     * OpenVPNService.onStartCommand() handles this action by calling its own stopVPN(false),
+     * which releases the tun interface, stops the foreground notification (removes the VPN
+     * key icon from the status bar), and calls stopSelf().
+     * The VpnStatus → LocalBroadcast → VPNHelper.listener chain then fires updateStage("disconnected").
+     */
+    /**
+     * Registers (or re-registers) the VPN status listener with vpnHelper.
+     * Must be called after vpnHelper is created (initialize) and after
+     * vpnHelper.stopVPN() (which unregisters the broadcastReceiver), so
+     * that startVPN() status callbacks flow through correctly.
+     */
+    private void registerVPNStatusListener() {
+        vpnHelper.setOnVPNStatusChangeListener(new OnVPNStatusChangeListener() {
+            @Override
+            public void onVPNStatusChanged(String status) {
+                updateStage(status);
+            }
+
+            @Override
+            public void onConnectionStatusChanged(String duration, String lastPacketReceive,
+                                                 String byteIn, String byteOut) {
+                // Connection stats updated
+            }
+        });
+    }
+
+    /**
+     * Schedules DISCONNECT_VPN to be sent to OpenVPNService after a 2-second delay.
+     * If a new connect() call arrives before the delay fires, _connectingInProgress
+     * is set to true and the intent is silently dropped, preventing the new session
+     * from being killed by a stale disconnect command.
+     */
+    private void sendDisconnectVpnIntentDelayed() {
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (_connectingInProgress) {
+                android.util.Log.i("AxeVPN", "⚠️ Skipped DISCONNECT_VPN — new connection in progress");
+                return;
+            }
+            try {
+                Intent disconnectIntent = new Intent(OpenVPNService.DISCONNECT_VPN);
+                disconnectIntent.setClass(mContext, OpenVPNService.class);
+                mContext.startService(disconnectIntent);
+                android.util.Log.i("AxeVPN", "✅ Sent DISCONNECT_VPN to OpenVPNService");
+            } catch (Exception e) {
+                android.util.Log.e("AxeVPN", "❌ DISCONNECT_VPN failed: " + e.getMessage());
+            }
+        }, 2000);
     }
 
     /**
@@ -617,15 +692,20 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
     }
 
     /**
-     * Update VPN stage and notify listeners (OpenVPN)
+     * Update VPN stage and notify listeners (OpenVPN).
+     * Always posts to the main looper so the EventSink.success() call is safe
+     * regardless of which thread (VPN service / notification action) invokes this.
      * @param stage Current VPN connection stage
      */
     public void updateStage(String stage) {
         if (stage == null) {
             stage = "idle";
         }
+        final String finalStage = stage.toLowerCase();
         if (vpnStageSink != null) {
-            vpnStageSink.success(stage.toLowerCase());
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (vpnStageSink != null) vpnStageSink.success(finalStage);
+            });
         }
     }
 

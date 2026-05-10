@@ -218,6 +218,17 @@ class OpenConnect {
     }
   }
 
+  /// Returns true if the native OC foreground service is still running.
+  /// Useful on app restart to detect if a previous OC session is still active.
+  Future<bool> isServiceRunning() async {
+    try {
+      final result = await _channelControl.invokeMethod<bool>('isRunning');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────
 
   void _initializeListener() {

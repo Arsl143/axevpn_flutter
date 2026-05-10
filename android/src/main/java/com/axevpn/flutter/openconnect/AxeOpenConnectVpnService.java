@@ -64,6 +64,9 @@ public class AxeOpenConnectVpnService extends VpnService {
     public static final String ACTION_CONNECT    = "com.axevpn.flutter.openconnect.CONNECT";
     public static final String ACTION_DISCONNECT = "com.axevpn.flutter.openconnect.DISCONNECT";
 
+    /** True while the VPN tunnel is active. Read by OpenConnectFlutterPlugin on re-init. */
+    public static volatile boolean isRunning = false;
+
     public static final String EXTRA_SERVER_URL    = "server_url";
     public static final String EXTRA_TUNNEL_NAME   = "tunnel_name";
     public static final String EXTRA_USERNAME      = "username";
@@ -117,7 +120,7 @@ public class AxeOpenConnectVpnService extends VpnService {
             shutdown();
             stopSelf();
         }
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
@@ -213,19 +216,25 @@ public class AxeOpenConnectVpnService extends VpnService {
             safeClose(authSock);
             authSock = null;
 
+            // ocserv CONNECT needs ONLY the webvpn= cookie — strip webvpncontext and webvpnc
+            // A failed login also returns HTTP 200 with webvpncontext= only, so we must
+            // explicitly verify a webvpn= session cookie was issued (auth succeeded).
+            String sessionCookieFull = sessionCookie;
+            sessionCookie = null;
+            if (sessionCookieFull != null) {
+                for (String part : sessionCookieFull.split("; ")) {
+                    if (part.startsWith("webvpn=")) { // exact prefix — not webvpnc= or webvpncontext=
+                        sessionCookie = part;
+                        break;
+                    }
+                }
+            }
+
             if (sessionCookie == null || sessionCookie.isEmpty()) {
-                Log.e(TAG, "Authentication step 2 failed — no session cookie received");
+                Log.e(TAG, "Authentication step 2 failed — no webvpn= session cookie (wrong password or server rejected login)");
                 broadcastStage("denied");
                 stopSelf();
                 return;
-            }
-
-            // ocserv CONNECT needs ONLY the webvpn= cookie — strip webvpncontext and webvpnc
-            for (String part : sessionCookie.split("; ")) {
-                if (part.startsWith("webvpn=")) { // matches webvpn= but NOT webvpnc= or webvpncontext=
-                    sessionCookie = part;
-                    break;
-                }
             }
 
             // ── Phase 2: Open CSTP tunnel ──
@@ -271,6 +280,7 @@ public class AxeOpenConnectVpnService extends VpnService {
             // ── Phase 4: Forward packets ──
             this.tunnelSocket = tunSock;
             running = true;
+            isRunning = true;
             // startForeground() was already called in onStartCommand().
             broadcastStage("connected");
             forwardPackets(tunSock.getInputStream(), tos, cfg.mtu > 0 ? cfg.mtu : 1406);
@@ -298,8 +308,14 @@ public class AxeOpenConnectVpnService extends VpnService {
                 if (pin == null) return; // accept any cert when no pin provided
                 for (X509Certificate cert : chain) {
                     try {
-                        byte[] fp = MessageDigest.getInstance("SHA-256").digest(cert.getEncoded());
-                        if (Arrays.equals(fp, pin)) return;
+                        MessageDigest md = MessageDigest.getInstance("SHA-256");
+                        // Try SPKI (public key) hash — matches pin-sha256: format
+                        byte[] spkiHash = md.digest(cert.getPublicKey().getEncoded());
+                        if (Arrays.equals(spkiHash, pin)) return;
+                        // Also try full certificate hash — matches hex fingerprint format
+                        md.reset();
+                        byte[] certHash = md.digest(cert.getEncoded());
+                        if (Arrays.equals(certHash, pin)) return;
                     } catch (Exception e) {
                         throw new java.security.cert.CertificateException(e);
                     }
@@ -551,6 +567,7 @@ public class AxeOpenConnectVpnService extends VpnService {
 
     private void shutdown() {
         running = false;
+        isRunning = false;
         safeClose(tunnelSocket);
         tunnelSocket = null;
         if (tunInterface != null) {
@@ -611,11 +628,23 @@ public class AxeOpenConnectVpnService extends VpnService {
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE))
                     .createNotificationChannel(ch);
         }
+
+        // Disconnect action – fires ACTION_DISCONNECT back to this service.
+        Intent disconnectIntent = new Intent(this, AxeOpenConnectVpnService.class);
+        disconnectIntent.setAction(ACTION_DISCONNECT);
+        int piFlags = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+                ? android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                : android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+        android.app.PendingIntent disconnectPi =
+                android.app.PendingIntent.getService(this, 0, disconnectIntent, piFlags);
+
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
-                .setContentText("OpenConnect tunnel active")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentText("OpenConnect VPN tunnel active")
+                .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .addAction(0, "Disconnect", disconnectPi)
                 .build();
     }
 }
