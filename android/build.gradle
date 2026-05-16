@@ -109,7 +109,8 @@ android {
             pickFirsts += [
                 '**/libwg-go.so',
                 '**/libwg.so',
-                '**/libwg-quick.so'
+                '**/libwg-quick.so',
+                '**/libtun2socks.so'
             ]
         }
 
