@@ -31,3 +31,5 @@
 .packages
 build/
 example
+android/src/main/jniLibs/x86_64/libtun2socks.so.bak
+android/src/main/jniLibs/arm64-v8a/libtun2socks.so.bak
