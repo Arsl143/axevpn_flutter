@@ -443,6 +443,9 @@ public class AxeOpenConnectVpnService extends VpnService {
             if (cfg.dns  != null) try { b.addDnsServer(cfg.dns);  } catch (Exception ignored) {}
             if (cfg.dns2 != null) try { b.addDnsServer(cfg.dns2); } catch (Exception ignored) {}
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) b.setMetered(false);
+            // Exclude the VPN app itself so its own traffic (ads, API calls)
+            // bypasses the tunnel and reaches the internet directly.
+            try { b.addDisallowedApplication(getPackageName()); } catch (Exception ignored) {}
             return b.establish();
         } catch (Exception e) {
             Log.e(TAG, "TUN build failed", e); return null;

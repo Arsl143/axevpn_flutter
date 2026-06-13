@@ -12,8 +12,12 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 /**
- * Foreground Service for WireGuard VPN notification
- * Provides persistent notification while VPN is connected
+ * Foreground Service for WireGuard VPN notification.
+ * Provides a persistent notification while the VPN tunnel is active.
+ *
+ * CRITICAL: startForeground() is called at the very top of onStartCommand()
+ * (before branching on the intent action) to satisfy Android 8+'s 5-second
+ * deadline regardless of which action — or null intent — arrives.
  */
 public class AxeWireGuardService extends Service {
     private static final String TAG = "AxeWireGuardService";
@@ -51,31 +55,39 @@ public class AxeWireGuardService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // CRITICAL FIX: startForeground() must be called unconditionally at the top of
+        // onStartCommand() so that the Android 8+ foreground-service timeout is met
+        // regardless of intent action or whether the OS restarted the service with a
+        // null intent. We update the notification text when ACTION_START arrives below.
+        startForeground(NOTIFICATION_ID, buildNotification(currentTunnelName));
+        android.util.Log.i(TAG, "startForeground() called unconditionally at onStartCommand start");
+
         if (intent != null) {
-            String action = intent.getAction();
+            final String action = intent.getAction();
+            android.util.Log.d(TAG, "Action: " + action);
 
             if (ACTION_START.equals(action)) {
-                currentTunnelName = intent.getStringExtra(EXTRA_TUNNEL_NAME);
-                if (currentTunnelName == null) {
-                    currentTunnelName = "AxeVPN";
+                final String name = intent.getStringExtra(EXTRA_TUNNEL_NAME);
+                if (name != null) {
+                    currentTunnelName = name;
                 }
-                startNotification();
-                android.util.Log.i(TAG, "Starting notification for: " + currentTunnelName);
+                // Update the notification with the real tunnel name.
+                updateNotification(currentTunnelName);
+                android.util.Log.i(TAG, "Notification started for tunnel: " + currentTunnelName);
 
             } else if (ACTION_DISCONNECT.equals(action)) {
                 android.util.Log.i(TAG, "Disconnect action received from notification");
                 if (disconnectCallback != null) {
                     disconnectCallback.onDisconnectRequested();
                 } else {
-                    // Fallback path: callback may be null after process/service recreation.
-                    // Always request tunnel teardown directly from the VPN service.
+                    // Fallback: send disconnect intent directly to VPN service.
                     try {
-                        Intent vpnDisconnectIntent = new Intent(this, AxeWireGuardVpnService.class);
-                        vpnDisconnectIntent.setAction(AxeWireGuardVpnService.ACTION_DISCONNECT);
+                        final Intent vpnDisconnect = new Intent(this, AxeWireGuardVpnService.class);
+                        vpnDisconnect.setAction(AxeWireGuardVpnService.ACTION_DISCONNECT);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(vpnDisconnectIntent);
+                            startForegroundService(vpnDisconnect);
                         } else {
-                            startService(vpnDisconnectIntent);
+                            startService(vpnDisconnect);
                         }
                         android.util.Log.i(TAG, "Fallback disconnect sent to AxeWireGuardVpnService");
                     } catch (Exception e) {
@@ -83,21 +95,31 @@ public class AxeWireGuardService extends Service {
                     }
                 }
                 stopNotification();
+
             } else if (ACTION_STOP.equals(action)) {
                 stopNotification();
+
+            } else {
+                android.util.Log.w(TAG, "Unknown action received: " + action);
             }
+        } else {
+            // OS restarted the service with a null intent (START_NOT_STICKY shouldn't
+            // cause this, but guard defensively). Stop cleanly.
+            android.util.Log.w(TAG, "Null intent in onStartCommand — stopping service");
+            stopNotification();
         }
 
         return START_NOT_STICKY;
     }
 
-    private void startNotification() {
+    private void updateNotification(String tunnelName) {
         try {
-            Notification notification = createNotification(currentTunnelName);
-            startForeground(NOTIFICATION_ID, notification);
-            android.util.Log.i(TAG, "Foreground notification started");
+            final NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) {
+                nm.notify(NOTIFICATION_ID, buildNotification(tunnelName));
+            }
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Failed to start notification", e);
+            android.util.Log.e(TAG, "Failed to update notification", e);
         }
     }
 
@@ -127,64 +149,52 @@ public class AxeWireGuardService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "WireGuard VPN",
-                NotificationManager.IMPORTANCE_LOW
-            );
+            final NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm == null) return;
+            if (nm.getNotificationChannel(NOTIFICATION_CHANNEL_ID) != null) return;
+
+            final NotificationChannel channel = new NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "WireGuard VPN",
+                    NotificationManager.IMPORTANCE_LOW);
             channel.setDescription("WireGuard VPN connection status");
-            channel.setShowBadge(true);
+            channel.setShowBadge(false);
             channel.enableVibration(false);
             channel.setSound(null, null);
-
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-                android.util.Log.d(TAG, "Notification channel created");
-            }
+            nm.createNotificationChannel(channel);
+            android.util.Log.d(TAG, "Notification channel created");
         }
     }
 
-    private Notification createNotification(String tunnelName) {
-        // Launch app intent
-        Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (intent == null) {
-            intent = new Intent();
-        }
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    private Notification buildNotification(String tunnelName) {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (launchIntent == null) launchIntent = new Intent();
+        launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+        final int piFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-                : PendingIntent.FLAG_UPDATE_CURRENT
-        );
+                : PendingIntent.FLAG_UPDATE_CURRENT;
 
-        // Disconnect action
-        Intent disconnectIntent = new Intent(this, AxeWireGuardService.class);
+        final PendingIntent contentPi = PendingIntent.getActivity(this, 0, launchIntent, piFlags);
+
+        final Intent disconnectIntent = new Intent(this, AxeWireGuardService.class);
         disconnectIntent.setAction(ACTION_DISCONNECT);
-        PendingIntent disconnectPendingIntent = PendingIntent.getService(
-            this, 1, disconnectIntent,
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-                : PendingIntent.FLAG_UPDATE_CURRENT
-        );
+        final PendingIntent disconnectPi = PendingIntent.getService(
+                this, 1, disconnectIntent, piFlags);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_upload) // VPN icon
-            .setContentTitle("WireGuard Connected")
-            .setContentText(tunnelName)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setShowWhen(false)
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Disconnect",
-                disconnectPendingIntent
-            );
-
-        return builder.build();
+        return new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_upload)
+                .setContentTitle("WireGuard Connected")
+                .setContentText(tunnelName != null ? tunnelName : "AxeVPN")
+                .setContentIntent(contentPi)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setShowWhen(false)
+                .addAction(
+                        android.R.drawable.ic_menu_close_clear_cancel,
+                        "Disconnect",
+                        disconnectPi)
+                .build();
     }
 }

@@ -23,16 +23,6 @@ rootProject.allprojects {
     }
 }
 
-allprojects {
-    repositories {
-        mavenLocal()
-        mavenCentral()
-        maven { url "https://jitpack.io" }
-        flatDir {
-            dirs "${project.projectDir}/libs"
-        }
-    }
-}
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
@@ -176,5 +166,8 @@ dependencies {
     // ─── V2Ray / Xray core ────────────────────────────────────────────────────
     // Go-mobile binding that wraps the Xray-core. The .aar is placed in
     // android/libs/ and libtun2socks.so in the per-ABI jniLibs/ directories.
-    implementation(name: "libv2ray", ext: "aar")
+    // compileOnly: provides classes for compilation inside this library module without
+    // trying to bundle AAR-in-AAR (which AGP 8+ rejects). The app module must declare
+    // implementation(files("libs/libv2ray.aar")) to supply the runtime classes + .so files.
+    compileOnly(files("libs/libv2ray.aar"))
 }

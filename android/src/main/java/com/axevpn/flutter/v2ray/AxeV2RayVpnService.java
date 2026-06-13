@@ -151,6 +151,9 @@ public class AxeV2RayVpnService extends VpnService {
             for (String dns : dnsServers) {
                 try { builder.addDnsServer(dns); } catch (Exception ignored) {}
             }
+            // Exclude the VPN app itself so its own traffic (ads, API calls)
+            // bypasses the tunnel and reaches the internet directly.
+            try { builder.addDisallowedApplication(getPackageName()); } catch (Exception ignored) {}
             tunInterface = builder.establish();
             if (tunInterface == null) {
                 Log.e(TAG, "Failed to establish TUN interface");
