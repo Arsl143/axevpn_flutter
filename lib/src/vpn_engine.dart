@@ -179,7 +179,7 @@ class OpenVPN {
     bool certIsRequired = false,
   }) {
     if (!initialized) throw ("OpenVPN need to be initialized");
-    if (!certIsRequired) config += "client-cert-not-required";
+    if (!certIsRequired) config += '\nclient-cert-not-required';
     _tempDateTime = DateTime.now();
 
     try {
