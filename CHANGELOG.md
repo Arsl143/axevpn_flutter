@@ -1,3 +1,9 @@
+## 3.0.1
+* **Fix: WireGuard foreground-service crash (Android 12-15)** – `com.wireguard.android.backend.GoBackend$VpnService` (the service Envato's `ForegroundServiceDidNotStartInTimeException` report named) ships in the upstream `tunnel` AAR with no `foregroundServiceType` at all; declared it explicitly with `specialUse` so `startForeground()` no longer throws `MissingForegroundServiceTypeException` on API 34+.
+* **Fix: removed a redundant, non-functional `AxeWireGuardVpnService` start** that raced `GoBackend`'s own `VpnService.Builder().establish()` call for the same tunnel, which was destabilizing the real WireGuard connection.
+* **Fix: corrected VPN foreground service type** for OpenVPN, V2Ray, and WireGuard services from `connectedDevice`/`systemExempted` to `specialUse` with the `PROPERTY_SPECIAL_USE_FGS_SUBTYPE=vpn` property. `systemExempted` requires a `signature|privileged` permission a third-party app can never hold, and `connectedDevice` is for companion/wearable links, not VPN — both were rejected by Play policy review and/or crashed on Android 14+.
+* **Fix: V2Ray `libv2ray.aar` not packaged at runtime** – the AAR is `compileOnly` in this plugin (AGP rejects bundling an AAR inside another AAR); consuming apps must add `implementation(files("libs/libv2ray.aar"))` themselves. Documented this requirement and applied it in the bundled example/host app, fixing `ClassNotFoundException`/`UnsatisfiedLinkError` on V2Ray connect.
+
 ## 2.0.0
 * **New: WireGuard protocol support** – full Android and iOS integration via native WireGuard-Go and WireGuardKit
 * **Android 15+ 16 KB page-size compatibility** – NDK 27, `enable16KPageSize=true`, verified on API 36 device

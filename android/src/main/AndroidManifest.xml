@@ -20,17 +20,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-        Android 14 (API 34)+: foreground services that manage VPN/network connections require
-        the FOREGROUND_SERVICE_CONNECTED_DEVICE permission in addition to FOREGROUND_SERVICE.
-        The minSdkVersion guard prevents lint warnings on older API levels.
-    -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
-        android:minSdkVersion="34" />
-
-    <!--
-        Android 14 (API 34)+: Any foreground service that does not fit a standard type
-        must declare FOREGROUND_SERVICE_SPECIAL_USE (used by OpenConnect here).
+        Android 14 (API 34)+: there is no dedicated "vpn" foregroundServiceType, so every
+        VPN tunnel service here declares specialUse and needs this permission.
+        NOTE: do NOT use systemExempted/FOREGROUND_SERVICE_SYSTEM_EXEMPTED — that permission
+        has protectionLevel="signature|privileged" and can never be granted to a normal
+        third-party app; declaring it causes the foreground service start to fail/crash
+        on Android 14+. Likewise connectedDevice is for companion/wearable device links,
+        not VPN, and Play Console review flags it as a type mismatch for VPN apps.
     -->
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
@@ -48,59 +44,102 @@
 
         <!--
             OpenVPN Service.
-            foregroundServiceType="systemExempted" is required on API 34+ for VPN services
-            that are exempt from the foreground-service type restrictions.
+            foregroundServiceType="specialUse" is the correct API 34+ type for a
+            third-party VPN tunnel (there is no dedicated "vpn" type; systemExempted
+            requires a signature|privileged permission this app cannot hold).
             tools:replace ensures the app manifest wins over the library manifest if there
             is a conflict on the exported attribute.
         -->
         <service
             android:name="de.blinkt.openvpn.core.OpenVPNService"
             android:exported="false"
-            android:foregroundServiceType="systemExempted"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            tools:replace="android:exported" />
+            tools:replace="android:exported">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
         <!-- V2Ray / Xray TUN service -->
         <service
             android:name="com.axevpn.flutter.v2ray.AxeV2RayVpnService"
             android:exported="false"
-            android:foregroundServiceType="systemExempted"
-            android:permission="android.permission.BIND_VPN_SERVICE" />
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
         <!--
             OpenConnect (Cisco AnyConnect-compatible) TUN service.
             specialUse is required on API 34+ for VPN-type foreground services that
-            do not fit connectedDevice or systemExempted categories.
+            do not fit a standard category.
         -->
         <service
             android:name="com.axevpn.flutter.openconnect.AxeOpenConnectVpnService"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            android:permission="android.permission.BIND_VPN_SERVICE" />
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
+
+        <!--
+            CRITICAL FIX: the com.wireguard.android:tunnel AAR (verified by extracting
+            tunnel-1.0.20230706.aar) declares GoBackend$VpnService with NO
+            foregroundServiceType at all. This is the actual service GoBackend.setState()
+            starts and promotes to the foreground for every WireGuard tunnel — it is the
+            "GoBackend$VpnService" Envato's ForegroundServiceDidNotStartInTimeException
+            report names. On API 34+ (targetSdk 36 here) a foreground service with no
+            declared type throws MissingForegroundServiceTypeException when it calls
+            startForeground(), which crashes the app. Declaring it here with specialUse
+            merges into the AAR's manifest entry (same service name, no conflicting
+            attribute) and fixes the crash without touching GoBackend's Java code.
+        -->
+        <service
+            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
         <!--
             WireGuard notification / foreground-service controller.
-            Uses connectedDevice because it represents an active network connection.
+            Uses specialUse: this service backs an active VPN tunnel, not a
+            companion/wearable device link, so connectedDevice is the wrong type.
             Must be declared here so startForegroundService() resolves it correctly
             when called from AxeVPNFlutterPlugin.startWgVPN().
         -->
         <service
             android:name="com.axevpn.flutter.wireguard.AxeWireGuardService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice"
-            android:stopWithTask="false" />
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
         <!--
             WireGuard VPN tunnel service (creates the actual TUN interface).
-            Must also declare connectedDevice so that the mandatory startForeground()
+            Must also declare specialUse so that the mandatory startForeground()
             call inside onStartCommand() is accepted by the system on API 34+.
         -->
         <service
             android:name="com.axevpn.flutter.wireguard.AxeWireGuardVpnService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>

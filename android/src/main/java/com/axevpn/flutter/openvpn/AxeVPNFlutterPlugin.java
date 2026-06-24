@@ -23,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import com.wireguard.crypto.Key;
 
 import com.axevpn.flutter.wireguard.AxeWireGuardService;
-import com.axevpn.flutter.wireguard.AxeWireGuardVpnService;
 import com.axevpn.flutter.v2ray.V2RayFlutterPlugin;
 import com.axevpn.flutter.openconnect.OpenConnectFlutterPlugin;
 
@@ -503,15 +502,6 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             android.util.Log.e("AxeVPN-WG", "Error stopping notification service", e);
         }
 
-        // Stop VPN service
-        try {
-            Intent vpnStopIntent = new Intent(mContext, AxeWireGuardVpnService.class);
-            vpnStopIntent.setAction(AxeWireGuardVpnService.ACTION_DISCONNECT);
-            mContext.startService(vpnStopIntent);
-        } catch (Exception e) {
-            android.util.Log.e("AxeVPN-WG", "Error stopping VPN service", e);
-        }
-
         // Stop tunnel via backend
         if (currentTunnel != null) {
             final WireGuardTunnel tunnelToStop = currentTunnel;
@@ -631,24 +621,14 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
             android.util.Log.e("AxeVPN-WG", "Failed to start notification service", e);
         }
 
-        // Start VPN service
-        try {
-            Intent vpnIntent = new Intent(mContext, AxeWireGuardVpnService.class);
-            vpnIntent.setAction(AxeWireGuardVpnService.ACTION_CONNECT);
-            vpnIntent.putExtra(AxeWireGuardVpnService.EXTRA_CONFIG, config.toWgQuickString());
-            vpnIntent.putExtra(AxeWireGuardVpnService.EXTRA_TUNNEL_NAME, tunnelName);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                mContext.startForegroundService(vpnIntent);
-            } else {
-                mContext.startService(vpnIntent);
-            }
-            android.util.Log.d("AxeVPN-WG", "VPN service connect request sent");
-        } catch (Exception e) {
-            android.util.Log.e("AxeVPN-WG", "Failed to start VPN service", e);
-            isWgConnecting = false;
-            updateWgStage("error");
-            return;
-        }
+        // NOTE: the actual tunnel is established below via GoBackend.setState(), which
+        // internally starts and promotes its own com.wireguard.android.backend.GoBackend$VpnService
+        // to the foreground (declared in this plugin's AndroidManifest.xml with the
+        // specialUse type). AxeWireGuardVpnService is a separate, non-functional VpnService
+        // (it opens a TUN fd but nothing reads/writes wireguard packets on it) — starting it
+        // here raced GoBackend's own VpnService.Builder().establish() call for the same
+        // underlying VPN interface, which is what produced the unstable foreground-service
+        // promotion Envato flagged. Do not start it for the real tunnel.
 
         // Start tunnel via backend
         new Thread(() -> {
