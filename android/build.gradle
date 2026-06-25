@@ -166,8 +166,19 @@ dependencies {
     // ─── V2Ray / Xray core ────────────────────────────────────────────────────
     // Go-mobile binding that wraps the Xray-core. The .aar is placed in
     // android/libs/ and libtun2socks.so in the per-ABI jniLibs/ directories.
-    // compileOnly: provides classes for compilation inside this library module without
-    // trying to bundle AAR-in-AAR (which AGP 8+ rejects). The app module must declare
-    // implementation(files("libs/libv2ray.aar")) to supply the runtime classes + .so files.
-    compileOnly(files("libs/libv2ray.aar"))
+    //
+    // CRITICAL FIX: this was previously compileOnly, on the assumption that AGP
+    // rejects bundling an AAR inside another AAR. That restriction only applies
+    // when this module itself is built into a standalone, precompiled .aar
+    // artifact (e.g. published to Maven). Flutter plugins consumed via pub/git
+    // are NOT precompiled — Gradle includes ":axevpn_flutter" as a source
+    // subproject directly inside the consuming app's build, so an
+    // implementation-scoped local file dependency here is resolved onto the
+    // final app's runtime classpath like any other project dependency.
+    //
+    // compileOnly left libv2ray's classes (e.g. libv2ray.V2RayVPNServiceSupportsSet)
+    // out of every buyer's APK/AAB unless they manually added the same dependency
+    // in their own app/build.gradle — which most white-label buyers never do —
+    // producing NoClassDefFoundError crashes on VLESS/VMess/V2Ray connect.
+    implementation(files("libs/libv2ray.aar"))
 }

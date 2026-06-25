@@ -1,6 +1,6 @@
 name: axevpn_flutter
 description: Multi-protocol VPN plugin for Flutter supporting OpenVPN, WireGuard, V2Ray/Xray (VLESS, VMess, Trojan, Shadowsocks) and OpenConnect on Android and iOS.
-version: 3.0.1
+version: 3.0.2
 homepage: https://github.com/arsl143/axevpn_flutter
 repository: https://github.com/arsl143/axevpn_flutter
 issue_tracker: https://github.com/arsl143/axevpn_flutter/issues

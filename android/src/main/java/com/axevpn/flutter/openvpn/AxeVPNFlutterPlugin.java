@@ -220,6 +220,16 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         vpnControlMethod.setMethodCallHandler((call, result) -> {
             try {
                 switch (call.method) {
+                    case "setNotificationConfig":
+                        com.axevpn.flutter.core.VpnNotificationConfig.configure(
+                                call.argument("appName"),
+                                call.argument("connectedTitle"),
+                                call.argument("connectedSubtitle"),
+                                call.argument("channelName"),
+                                call.argument("channelDescription"));
+                        result.success(null);
+                        break;
+
                     case "status":
                         if (vpnHelper == null) {
                             result.error("-1", "VPNEngine needs to be initialized", "Call initialize() first");
@@ -418,6 +428,16 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
                         result.success(wgStage);
                         break;
 
+                    case "setNotificationConfig":
+                        com.axevpn.flutter.core.VpnNotificationConfig.configure(
+                                call.argument("appName"),
+                                call.argument("connectedTitle"),
+                                call.argument("connectedSubtitle"),
+                                call.argument("channelName"),
+                                call.argument("channelDescription"));
+                        result.success(null);
+                        break;
+
                     default:
                         result.notImplemented();
                         break;
@@ -442,7 +462,9 @@ public class AxeVPNFlutterPlugin implements FlutterPlugin, ActivityAware, io.flu
         }
 
         if (tunnelName == null || tunnelName.isEmpty()) {
-            tunnelName = "AxeVPN";
+            // Never hardcode a brand name here: fall back to the buyer's configured
+            // appName, or the host app's own label, so white-label apps never show "AxeVPN".
+            tunnelName = com.axevpn.flutter.core.VpnNotificationConfig.defaultTunnelName(mContext);
         }
 
         try {

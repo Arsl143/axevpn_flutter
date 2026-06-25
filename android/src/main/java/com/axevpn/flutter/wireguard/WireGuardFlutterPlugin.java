@@ -178,7 +178,7 @@ public class WireGuardFlutterPlugin implements FlutterPlugin, ActivityAware, Met
         }
         
         if (tunnelName == null || tunnelName.isEmpty()) {
-           tunnelName = "AxeVPN";
+           tunnelName = com.axevpn.flutter.core.VpnNotificationConfig.defaultTunnelName(context);
         }
         
         try {

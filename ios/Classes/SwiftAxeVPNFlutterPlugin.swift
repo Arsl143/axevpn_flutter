@@ -17,6 +17,15 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
     public static var stage: FlutterEventSink?
     public static var wgStage: FlutterEventSink?
     private var initialized : Bool = false
+
+    /// Host app's own display name — never a literal "AxeVPN". Used as the default
+    /// WireGuard tunnel name when the Flutter caller doesn't supply one.
+    static func hostAppName() -> String {
+        let info = Bundle.main.infoDictionary
+        return (info?["CFBundleDisplayName"] as? String)
+            ?? (info?["CFBundleName"] as? String)
+            ?? "VPN"
+    }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = SwiftAxeVPNFlutterPlugin()
@@ -147,7 +156,10 @@ public class SwiftAxeVPNFlutterPlugin: NSObject, FlutterPlugin {
                     return
                 }
                 
-                SwiftAxeVPNFlutterPlugin.wgManager?.connect(config: config!, tunnelName: tunnelName ?? "AxeVPN") { error in
+                // Never hardcode a brand name: fall back to the host app's own display
+                // name so white-label apps don't show "AxeVPN" in iOS VPN settings.
+                let resolvedTunnelName = (tunnelName?.isEmpty == false ? tunnelName! : SwiftAxeVPNFlutterPlugin.hostAppName())
+                SwiftAxeVPNFlutterPlugin.wgManager?.connect(config: config!, tunnelName: resolvedTunnelName) { error in
                     if error == nil {
                         result(nil)
                     } else {

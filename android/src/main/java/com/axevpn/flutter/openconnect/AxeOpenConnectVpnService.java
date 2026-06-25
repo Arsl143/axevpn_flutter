@@ -624,10 +624,14 @@ public class AxeOpenConnectVpnService extends VpnService {
 
     // ── Notification ──────────────────────────────────────────────────────────
 
-    private Notification buildNotification(String title) {
+    private Notification buildNotification(String tunnelName) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "OpenConnect VPN", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID,
+                    com.axevpn.flutter.core.VpnNotificationConfig.channelName("OpenConnect VPN"),
+                    NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(com.axevpn.flutter.core.VpnNotificationConfig.channelDescription(
+                    "OpenConnect connection status"));
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE))
                     .createNotificationChannel(ch);
         }
@@ -642,8 +646,10 @@ public class AxeOpenConnectVpnService extends VpnService {
                 android.app.PendingIntent.getService(this, 0, disconnectIntent, piFlags);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(title)
-                .setContentText("OpenConnect VPN tunnel active")
+                .setContentTitle(com.axevpn.flutter.core.VpnNotificationConfig.connectedTitle(
+                        this, "OpenConnect Connected"))
+                .setContentText(com.axevpn.flutter.core.VpnNotificationConfig.connectedSubtitle(
+                        this, tunnelName))
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)

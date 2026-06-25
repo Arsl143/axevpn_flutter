@@ -143,6 +143,30 @@ class WireGuard {
   /// Disconnect from WireGuard VPN
   Future<void> disconnect() => _channelControl.invokeMethod('disconnect');
 
+  /// Customize the persistent VPN notification shown while connected.
+  ///
+  /// White-label apps must call this (once, e.g. at startup) so the native
+  /// foreground-service notification shows the buyer's own branding instead of
+  /// any plugin default. Any field left null falls back to the host app's own
+  /// label (`android:label` / `strings.xml` `app_name`) — never a hardcoded name.
+  ///
+  /// This configuration is shared by every protocol in this plugin (OpenVPN,
+  /// WireGuard, V2Ray, OpenConnect), so it only needs to be called once.
+  Future<void> setNotificationConfig({
+    String? appName,
+    String? connectedTitle,
+    String? connectedSubtitle,
+    String? channelName,
+    String? channelDescription,
+  }) =>
+      _channelControl.invokeMethod('setNotificationConfig', {
+        'appName': appName,
+        'connectedTitle': connectedTitle,
+        'connectedSubtitle': connectedSubtitle,
+        'channelName': channelName,
+        'channelDescription': channelDescription,
+      });
+
   /// Get current WireGuard connection status
   Future<WireGuardStatus> status() async {
     String? statusResult = await _channelControl.invokeMethod('status');

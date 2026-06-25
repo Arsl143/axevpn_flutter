@@ -412,6 +412,31 @@ class WireGuardStatus {
 
 ---
 
+### White-label notification branding
+
+Every protocol's persistent VPN notification (WireGuard, OpenVPN, V2Ray, OpenConnect)
+defaults to your **host app's own label** (`android:label` in `AndroidManifest.xml` /
+`app_name` in `strings.xml`) — the plugin never hardcodes a brand name. If you renamed
+the app (e.g. for a white-label build), no extra steps are required.
+
+To override the wording explicitly, call `setNotificationConfig` once at startup, on
+either the `OpenVPN` or `WireGuard` engine instance — the configuration is shared
+across all protocols in this plugin:
+
+```dart
+await engine.setNotificationConfig(
+  appName: "LightBolt VPN",
+  connectedTitle: "WireGuard Connected",
+  connectedSubtitle: "LightBolt VPN",
+  channelName: "VPN Connection",
+  channelDescription: "VPN connection status",
+);
+```
+
+Any field left `null` falls back to the host app label, never to a literal "AxeVPN".
+
+---
+
 ### VPN Stages
 
 #### OpenVPN (`VPNStage`)

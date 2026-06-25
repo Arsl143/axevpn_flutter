@@ -58,6 +58,7 @@ public class V2RayFlutterPlugin implements FlutterPlugin, ActivityAware, MethodC
     private Context context;
 
     private String currentStage = "disconnected";
+    private String lastErrorMessage;
     private String pendingConfigJson;
     private String pendingTunnelName;
     private Result pendingResult;
@@ -67,7 +68,20 @@ public class V2RayFlutterPlugin implements FlutterPlugin, ActivityAware, MethodC
         @Override
         public void onReceive(Context ctx, Intent intent) {
             String stage = intent.getStringExtra(AxeV2RayVpnService.EXTRA_STAGE);
-            if (stage != null) updateStage(stage);
+            if (stage == null) return;
+            if ("error".equals(stage)) {
+                lastErrorMessage = intent.getStringExtra(AxeV2RayVpnService.EXTRA_ERROR_MESSAGE);
+                Log.e(TAG, "V2Ray service reported error: " + lastErrorMessage);
+                // Surface a clean Flutter error instead of letting the connect() call hang
+                // (the service start is fire-and-forget, so connect() already returned
+                // success; the stage stream + this pending-result fallback report failure).
+                if (pendingResult != null) {
+                    pendingResult.error("V2RAY_ENGINE_UNAVAILABLE",
+                            lastErrorMessage != null ? lastErrorMessage : "V2Ray engine unavailable", null);
+                    pendingResult = null;
+                }
+            }
+            updateStage(stage);
         }
     };
 
@@ -265,6 +279,9 @@ public class V2RayFlutterPlugin implements FlutterPlugin, ActivityAware, MethodC
             // Traffic stats are filled by the VPN service via broadcast in full impl.
             json.put("bytes_in", 0);
             json.put("bytes_out", 0);
+            if (lastErrorMessage != null) {
+                json.put("error_message", lastErrorMessage);
+            }
             return json.toString();
         } catch (Exception e) {
             return "{\"state\":\"unknown\"}";

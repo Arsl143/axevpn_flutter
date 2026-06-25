@@ -30,7 +30,9 @@ public class AxeWireGuardService extends Service {
     public static final String EXTRA_TUNNEL_NAME = "tunnelName";
 
     private static AxeWireGuardService instance;
-    private String currentTunnelName = "AxeVPN";
+    // null, not a literal brand name — buildNotification() falls back to the
+    // buyer-configured/app-label name via VpnNotificationConfig when this is unset.
+    private String currentTunnelName = null;
     private DisconnectCallback disconnectCallback;
 
     public interface DisconnectCallback {
@@ -155,9 +157,11 @@ public class AxeWireGuardService extends Service {
 
             final NotificationChannel channel = new NotificationChannel(
                     NOTIFICATION_CHANNEL_ID,
-                    "WireGuard VPN",
+                    com.axevpn.flutter.core.VpnNotificationConfig.channelName("WireGuard VPN"),
                     NotificationManager.IMPORTANCE_LOW);
-            channel.setDescription("WireGuard VPN connection status");
+            channel.setDescription(
+                    com.axevpn.flutter.core.VpnNotificationConfig.channelDescription(
+                            "WireGuard VPN connection status"));
             channel.setShowBadge(false);
             channel.enableVibration(false);
             channel.setSound(null, null);
@@ -184,8 +188,10 @@ public class AxeWireGuardService extends Service {
 
         return new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_upload)
-                .setContentTitle("WireGuard Connected")
-                .setContentText(tunnelName != null ? tunnelName : "AxeVPN")
+                .setContentTitle(com.axevpn.flutter.core.VpnNotificationConfig.connectedTitle(
+                        this, "WireGuard Connected"))
+                .setContentText(com.axevpn.flutter.core.VpnNotificationConfig.connectedSubtitle(
+                        this, tunnelName))
                 .setContentIntent(contentPi)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

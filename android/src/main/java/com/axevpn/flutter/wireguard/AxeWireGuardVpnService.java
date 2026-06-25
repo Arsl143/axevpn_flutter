@@ -62,8 +62,7 @@ public class AxeWireGuardVpnService extends VpnService {
         // Android 8+ requires this within ~5 s of startForegroundService(); failure
         // raises ForegroundServiceDidNotStartInTimeException and crashes the app.
         ensureNotificationChannel();
-        startForeground(NOTIFICATION_ID, buildForegroundNotification(
-                currentTunnelName != null ? currentTunnelName : "AxeVPN"));
+        startForeground(NOTIFICATION_ID, buildForegroundNotification(currentTunnelName));
         android.util.Log.i(TAG, "startForeground() called immediately in onStartCommand");
 
         if (intent != null) {
@@ -74,7 +73,7 @@ public class AxeWireGuardVpnService extends VpnService {
                 final String configStr = intent.getStringExtra(EXTRA_CONFIG);
                 currentTunnelName = intent.getStringExtra(EXTRA_TUNNEL_NAME);
                 if (currentTunnelName == null) {
-                    currentTunnelName = "AxeVPN";
+                    currentTunnelName = com.axevpn.flutter.core.VpnNotificationConfig.defaultTunnelName(this);
                 }
 
                 // Re-issue startForeground with the correct tunnel name now that we have it.
@@ -218,9 +217,11 @@ public class AxeWireGuardVpnService extends VpnService {
             if (nm != null && nm.getNotificationChannel(NOTIFICATION_CHANNEL_ID) == null) {
                 final NotificationChannel channel = new NotificationChannel(
                         NOTIFICATION_CHANNEL_ID,
-                        "WireGuard VPN",
+                        com.axevpn.flutter.core.VpnNotificationConfig.channelName("WireGuard VPN"),
                         NotificationManager.IMPORTANCE_LOW);
-                channel.setDescription("WireGuard VPN connection status");
+                channel.setDescription(
+                        com.axevpn.flutter.core.VpnNotificationConfig.channelDescription(
+                                "WireGuard VPN connection status"));
                 channel.setShowBadge(false);
                 channel.enableVibration(false);
                 channel.setSound(null, null);
@@ -243,8 +244,10 @@ public class AxeWireGuardVpnService extends VpnService {
 
         return new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_upload)
-                .setContentTitle("WireGuard VPN")
-                .setContentText(tunnelName != null ? tunnelName : "Connecting…")
+                .setContentTitle(com.axevpn.flutter.core.VpnNotificationConfig.connectedTitle(
+                        this, "WireGuard VPN"))
+                .setContentText(com.axevpn.flutter.core.VpnNotificationConfig.connectedSubtitle(
+                        this, tunnelName))
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

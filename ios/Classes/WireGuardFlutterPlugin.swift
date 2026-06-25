@@ -120,7 +120,7 @@ public class WireGuardFlutterPlugin: NSObject, FlutterPlugin {
                 }
                 
                 let config = (call.arguments as? [String: Any])?["config"] as? String
-                let tunnelName = (call.arguments as? [String: Any])?["tunnelName"] as? String ?? "AxeVPN"
+                let tunnelName = (call.arguments as? [String: Any])?["tunnelName"] as? String ?? SwiftAxeVPNFlutterPlugin.hostAppName()
                 
                 if config == nil {
                     result(FlutterError(

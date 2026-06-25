@@ -54,6 +54,7 @@ public class AxeV2RayVpnService extends VpnService {
     /** Broadcast sent to V2RayFlutterPlugin whenever the tunnel stage changes. */
     public static final String BROADCAST_STAGE = "com.axevpn.flutter.v2ray.STAGE";
     public static final String EXTRA_STAGE = "stage";
+    public static final String EXTRA_ERROR_MESSAGE = "error_message";
 
     private ParcelFileDescriptor tunInterface;
     private Process tun2socksProcess;
@@ -64,33 +65,49 @@ public class AxeV2RayVpnService extends VpnService {
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
+    // Set false if libv2ray classes fail to load, so startTunnel() never touches a
+    // half-initialised engine and the app reports a clean error instead of crashing.
+    private boolean engineAvailable = false;
+    private String engineInitError;
+
     @Override
     public void onCreate() {
         super.onCreate();
-        // Initialise the Go-mobile V2RayPoint once per service instance.
-        v2RayPoint = Libv2ray.newV2RayPoint(new V2RayVPNServiceSupportsSet() {
-            @Override
-            public long shutdown() {
-                stopTunnel();
-                return 0;
-            }
-            @Override
-            public long prepare() { return 0; }
-            @Override
-            public boolean protect(long socket) {
-                return AxeV2RayVpnService.this.protect((int) socket);
-            }
-            @Override
-            public long onEmitStatus(long l, String s) { return 0; }
-            @Override
-            public long setup(String s) { return 0; }
-        }, Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1);
+        try {
+            // Initialise the Go-mobile V2RayPoint once per service instance.
+            v2RayPoint = Libv2ray.newV2RayPoint(new V2RayVPNServiceSupportsSet() {
+                @Override
+                public long shutdown() {
+                    stopTunnel();
+                    return 0;
+                }
+                @Override
+                public long prepare() { return 0; }
+                @Override
+                public boolean protect(long socket) {
+                    return AxeV2RayVpnService.this.protect((int) socket);
+                }
+                @Override
+                public long onEmitStatus(long l, String s) { return 0; }
+                @Override
+                public long setup(String s) { return 0; }
+            }, Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1);
 
-        // Copy geosite/geoip assets to external storage so Xray-core can read them.
-        copyGeoAssets();
+            // Copy geosite/geoip assets to external storage so Xray-core can read them.
+            copyGeoAssets();
 
-        // Init the Xray env (assets path, empty env string).
-        Libv2ray.initV2Env(getGeoAssetsPath(), "");
+            // Init the Xray env (assets path, empty env string).
+            Libv2ray.initV2Env(getGeoAssetsPath(), "");
+
+            engineAvailable = true;
+        } catch (Throwable t) {
+            // Catches NoClassDefFoundError/UnsatisfiedLinkError (libv2ray.aar missing from
+            // the final APK/AAB) as well as any other engine init failure. Must catch
+            // Throwable, not Exception — NoClassDefFoundError is an Error, not an Exception.
+            Log.e(TAG, "V2Ray engine failed to initialize — libv2ray classes/native libs missing?", t);
+            engineInitError = "V2Ray engine unavailable: " + t.getClass().getSimpleName()
+                    + (t.getMessage() != null ? ": " + t.getMessage() : "");
+        }
     }
 
     @Override
@@ -99,10 +116,17 @@ public class AxeV2RayVpnService extends VpnService {
 
         String action = intent.getAction();
         if (ACTION_CONNECT.equals(action)) {
+            if (!engineAvailable) {
+                Log.e(TAG, "Rejecting connect: " + engineInitError);
+                broadcastError(engineInitError != null ? engineInitError : "V2Ray engine unavailable");
+                stopSelf();
+                return START_NOT_STICKY;
+            }
             String configJson = intent.getStringExtra(EXTRA_CONFIG_JSON);
             String tunnelName = intent.getStringExtra(EXTRA_TUNNEL_NAME);
             if (configJson != null) {
-                startTunnel(configJson, tunnelName != null ? tunnelName : "V2Ray VPN");
+                startTunnel(configJson, tunnelName != null ? tunnelName
+                        : com.axevpn.flutter.core.VpnNotificationConfig.defaultTunnelName(this));
             } else {
                 stopSelf();
             }
@@ -301,6 +325,13 @@ public class AxeV2RayVpnService extends VpnService {
         sendBroadcast(i);
     }
 
+    private void broadcastError(String message) {
+        Intent i = new Intent(BROADCAST_STAGE);
+        i.putExtra(EXTRA_STAGE, "error");
+        i.putExtra(EXTRA_ERROR_MESSAGE, message);
+        sendBroadcast(i);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     /** Returns the external-storage path used by Xray for geosite/geoip files. */
@@ -333,17 +364,22 @@ public class AxeV2RayVpnService extends VpnService {
         }
     }
 
-    private Notification buildNotification(String title) {
+    private Notification buildNotification(String tunnelName) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
-                NOTIFICATION_CHANNEL_ID, "V2Ray VPN Service",
+                NOTIFICATION_CHANNEL_ID,
+                com.axevpn.flutter.core.VpnNotificationConfig.channelName("V2Ray VPN Service"),
                 NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(com.axevpn.flutter.core.VpnNotificationConfig.channelDescription(
+                    "V2Ray connection status"));
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.createNotificationChannel(ch);
         }
         return new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText("V2Ray tunnel active")
+            .setContentTitle(com.axevpn.flutter.core.VpnNotificationConfig.connectedTitle(
+                    this, "V2Ray Connected"))
+            .setContentText(com.axevpn.flutter.core.VpnNotificationConfig.connectedSubtitle(
+                    this, tunnelName))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build();
