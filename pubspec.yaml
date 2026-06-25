@@ -11,9 +11,7 @@ topics:
   - openvpn
   - wireguard
   - v2ray
-  - openconnect
   - networking
-  - security
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
